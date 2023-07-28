@@ -1,25 +1,25 @@
 let push_timer = 0;
 let prev_set = null;
 
-function applyUpdate(name, value) {
-  if (screen != 'device') return;
-  if (prev_set && prev_set.name == name && prev_set.value == value) {
+async function applyUpdate(name, value) {
+  if (screen !== 'device') return;
+  if (prev_set && prev_set.name === name && prev_set.value === value) {
     prev_set = null;
     return;
   }
   if (name in prompts) {
-    release_all();
+    await release_all();
     let res = prompt(value ? value : prompts[name].label, prompts[name].value);
     if (res !== null) {
       prompts[name].value = res;
-      set_h(name, res);
+      await set_h(name, res);
     }
     return;
   }
   if (name in confirms) {
-    release_all();
+    await release_all();
     let res = confirm(value ? value : confirms[name].label);
-    set_h(name, res ? 1 : 0);
+    await set_h(name, res ? 1 : 0);
     return;
   }
   if (name in pickers) {
@@ -37,12 +37,12 @@ function applyUpdate(name, value) {
   else if (cl.contains('time_t')) el.value = new Date(value * 1000).toISOString().split('T')[1].split('.')[0];
   else if (cl.contains('datetime_t')) el.value = new Date(value * 1000).toISOString().split('.')[0];
   else if (cl.contains('slider_t')) el.value = value, EL('out#' + name).innerHTML = value, moveSlider(el, false);
-  else if (cl.contains('switch_t')) el.checked = (value == '1');
+  else if (cl.contains('switch_t')) el.checked = (value === '1');
   else if (cl.contains('select_t')) el.value = value;
   else if (cl.contains('image_t')) {
     files.push({ id: '#' + name, path: (value ? value : EL('#' + name).getAttribute("name")), type: 'img' });
     EL('wlabel#' + name).innerHTML = ' [0%]';
-    if (files.length == 1) nextFile();
+    if (files.length === 1) nextFile();
   }
   else if (cl.contains('canvas_t')) {
     if (name in canvases) {
@@ -79,18 +79,18 @@ function updateDevice(mem, dev) {
   save_devices();
 }
 function compareDevice(mem, dev) {
-  return mem.id != dev.id ||
-    mem.name != dev.name ||
-    mem.icon != dev.icon ||
-    mem.PIN != dev.PIN ||
-    mem.version != dev.version ||
-    mem.max_upl != dev.max_upl ||
-    mem.modules != dev.modules ||
-    mem.ota_t != dev.ota_t;
+  return mem.id !== dev.id ||
+    mem.name !== dev.name ||
+    mem.icon !== dev.icon ||
+    mem.PIN !== dev.PIN ||
+    mem.version !== dev.version ||
+    mem.max_upl !== dev.max_upl ||
+    mem.modules !== dev.modules ||
+    mem.ota_t !== dev.ota_t;
 }
-function parseDevice(fromID, text, conn, ip = 'unset') {
+async function parseDevice(fromID, text, conn, ip = 'unset') {
   let device;
-  text = text.trim().replaceAll(/([^\\])\\([^\"\\nrt])/ig, "$1\\\\$2").replaceAll(/\t/ig, "\\t").replaceAll(/\n/ig, "\\n").replaceAll(/\r/ig, "\\r");
+  text = text.trim().replaceAll(/([^\\])\\([^"\\nrt])/ig, "$1\\\\$2").replaceAll(/\t/ig, "\\t").replaceAll(/\n/ig, "\\n").replaceAll(/\r/ig, "\\r");
 
   try {
     device = JSON.parse(text);
@@ -101,12 +101,12 @@ function parseDevice(fromID, text, conn, ip = 'unset') {
 
   let id = device.id;
   if (!id) return log('Wrong packet (ID)');
-  if (fromID != 'broadcast' && fromID != id) return log('Wrong packet (Unknown ID)');
-  if (fromID == 'broadcast' && device.type != 'discover' && device.type != 'update' && device.type != 'push' && device.type != 'print' && device.type != 'data') return log('Wrong packet (error)');
+  if (fromID !== 'broadcast' && fromID !== id) return log('Wrong packet (Unknown ID)');
+  if (fromID === 'broadcast' && device.type !== 'discover' && device.type !== 'update' && device.type !== 'push' && device.type !== 'print' && device.type !== 'data') return log('Wrong packet (error)');
 
   log('Got packet from #' + id + ' ' + device.type + ' via ' + ConnNames[conn]);
 
-  if (id == focused) {
+  if (id === focused) {
     stop_tout();
     showErr(false);
     change_conn(devices_t[focused].conn);
@@ -118,7 +118,7 @@ function parseDevice(fromID, text, conn, ip = 'unset') {
       break;
 
     case 'alert':
-      release_all();
+      await release_all();
       alert(device.text);
       break;
 
@@ -137,15 +137,15 @@ function parseDevice(fromID, text, conn, ip = 'unset') {
       if (focused) return;
 
       // COMPATIBILITY
-      if (device.modules == undefined) device.modules = 0;
-      if (device.ota_t == undefined) device.ota_t = 'bin';
+      if (device.modules === undefined) device.modules = 0;
+      if (device.ota_t === undefined) device.ota_t = 'bin';
       //
 
       if (id in devices) {
         let upd = false;
         if (compareDevice(devices[id], device)) upd = true;
 
-        if (devices[id].ip == 'unset' && ip != 'unset') {
+        if (devices[id].ip === 'unset' && ip !== 'unset') {
           devices[id].ip = ip;
           upd = true;
         }
@@ -163,16 +163,13 @@ function parseDevice(fromID, text, conn, ip = 'unset') {
         updateDevice(devices[id], device);
 
         /*NON-ESP*/
-        if (mq_state()) {
-          mq_client.subscribe(devices[id].prefix + '/hub/' + id + '/get/#');
-          mq_client.subscribe(devices[id].prefix + '/hub/' + hub.cfg.client_id + '/#');
-          if (!mq_pref_list.includes(devices[id].prefix)) mq_pref_list.push(devices[id].prefix);
-        }
+        await hub.mqtt.initNewDevice(id);
         /*/NON-ESP*/
         addDevice(id);
       }
 
       if (!(id in devices_t)) {
+        hub.devices.set(id, new Device(id));
         devices_t[id] = {
           conn: Conn.NONE, ws: null, controls: null, granted: false,
           buffer: { WS: '', MQTT: '', Serial: '', BT: '' },
@@ -183,28 +180,31 @@ function parseDevice(fromID, text, conn, ip = 'unset') {
 
       EL(`device#${id}`).className = "device";
       EL(`${ConnNames[conn]}#${id}`).style.display = 'unset';
-      if (conn < devices_t[id].conn) devices_t[id].conn = conn;
+      if (conn < devices_t[id].conn) {
+        devices_t[id].conn = conn;
+      }
+      hub.devices.get(id).addConnectionType(conn);
       break;
 
     case 'print':
-      if (id != focused) return;
+      if (id !== focused) return;
       printCLI(device.text, device.color);
       break;
 
     case 'update':
-      if (id != focused) return;
+      if (id !== focused) return;
       if (!(id in devices)) return;
-      for (let name in device.updates) applyUpdate(name, device.updates[name]);
+      for (let name in device.updates) await applyUpdate(name, device.updates[name]);
       break;
 
     case 'ui':
-      if (id != focused) return;
+      if (id !== focused) return;
       devices_t[id].controls = device.controls;
       showControls(device.controls, false, conn, devices[focused].ip);
       break;
 
     case 'info':
-      if (id != focused) return;
+      if (id !== focused) return;
       showInfo(device);
       break;
 
@@ -218,43 +218,43 @@ function parseDevice(fromID, text, conn, ip = 'unset') {
 
     // ============== FS ==============
     case 'fsbr':
-      if (id != focused) return;
+      if (id !== focused) return;
       showFsbr(device);
       break;
 
     case 'fs_error':
-      if (id != focused) return;
+      if (id !== focused) return;
       EL('fsbr_inner').innerHTML = '<div class="fs_err">FS ERROR</div>';
       break;
 
     // ============= FETCH =============
     case 'fetch_start':
-      if (id != focused) return;
+      if (id !== focused) return;
 
       fetching = focused;
       fetch_file = '';
-      post('fetch_chunk', fetch_path);
+      await post('fetch_chunk', fetch_path);
       reset_fetch_tout();
       break;
 
     case 'fetch_next_chunk':
-      if (id != fetching) return;
+      if (id !== fetching) return;
 
       fetch_file += device.data;
-      if (device.chunk == device.amount - 1) {
+      if (device.chunk === device.amount - 1) {
         if (fetch_to_file) downloadFileEnd(fetch_file);
         else fetchEnd(fetch_name, fetch_index, fetch_file);
       } else {
         let perc = Math.round(device.chunk / device.amount * 100);
         if (fetch_to_file) processFile(perc);
         else EL('process#' + fetch_index).innerHTML = perc + '%';
-        post('fetch_chunk', fetch_path);
+        await post('fetch_chunk', fetch_path);
         reset_fetch_tout();
       }
       break;
 
     case 'fetch_err':
-      if (id != focused) return;
+      if (id !== focused) return;
 
       if (fetch_to_file) errorFile();
       else EL('process#' + fetch_index).innerHTML = 'Aborted';
@@ -270,14 +270,14 @@ function parseDevice(fromID, text, conn, ip = 'unset') {
       break;
 
     case 'upload_start':
-      if (id != focused) return;
+      if (id !== focused) return;
       uploading = focused;
       uploadNextChunk();
       reset_upload_tout();
       break;
 
     case 'upload_next_chunk':
-      if (id != uploading) return;
+      if (id !== uploading) return;
       uploadNextChunk();
       reset_upload_tout();
       break;
@@ -286,7 +286,7 @@ function parseDevice(fromID, text, conn, ip = 'unset') {
       showPopup('Upload Done!');
       stopFS();
       setLabelTout('file_upload_btn', 'Done!', 'Upload');
-      post('fsbr');
+      await post('fsbr');
       break;
 
     // ============= OTA =============
@@ -297,14 +297,14 @@ function parseDevice(fromID, text, conn, ip = 'unset') {
       break;
 
     case 'ota_start':
-      if (id != focused) return;
+      if (id !== focused) return;
       uploading = focused;
       otaNextChunk();
       reset_ota_tout();
       break;
 
     case 'ota_next_chunk':
-      if (id != uploading) return;
+      if (id !== uploading) return;
       otaNextChunk();
       reset_ota_tout();
       break;
@@ -346,7 +346,7 @@ function showControls(controls, from_buffer = false, conn = Conn.NONE, ip = 'uns
   for (ctrl of controls) {
     if (devices[focused].show_names && ctrl.name) ctrl.label = ctrl.name;
     ctrl.wlabel = ctrl.label ? ctrl.label : ctrl.type;
-    ctrl.clabel = (ctrl.label && ctrl.label != '_no') ? ctrl.label : ctrl.type;
+    ctrl.clabel = (ctrl.label && ctrl.label !== '_no') ? ctrl.label : ctrl.type;
     ctrl.clabel = ctrl.clabel.charAt(0).toUpperCase() + ctrl.clabel.slice(1);
 
     switch (ctrl.type) {
@@ -448,7 +448,7 @@ function showInfo(device) {
     } else addInfo('info_memory', i, device.info.memory[i]);
   }
   for (let i in device.info.system) {
-    if (i == 'Uptime') {
+    if (i === 'Uptime') {
       let sec = device.info.system[i];
       let upt = Math.floor(sec / 86400) + ':' + new Date(sec * 1000).toISOString().slice(11, 19);
       let d = new Date();

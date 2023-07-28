@@ -46,10 +46,10 @@ const Modules = {
 function save_devices() {
   localStorage.setItem('devices', JSON.stringify(devices));
 }
+
 function load_devices() {
   if (localStorage.hasOwnProperty('devices')) {
     devices = JSON.parse(localStorage.getItem('devices'));
-
   }
 }
 
@@ -57,6 +57,7 @@ function load_devices() {
 function readModule(module) {
   return !(devices[focused].modules & module);
 }
+
 function addDevice(id) {
   let icon = (!isESP() && devices[id].icon.length) ? `<span class="icon icon_min" id="icon#${id}">${devices[id].icon}</span>` : '';
   EL('devices').innerHTML += `<div class="device offline" id="device#${id}" onclick="device_h('${id}')" title="${id} [${devices[id].prefix}]">
@@ -96,6 +97,7 @@ function addButton(ctrl) {
     EL(btn_row_id).innerHTML += `${renderButton(ctrl.name, 'c_btn', ctrl.name, label, ctrl.size, ctrl.color, false)}`;
   }
 }
+
 function addButtonIcon(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -109,6 +111,7 @@ function addButtonIcon(ctrl) {
     EL(btn_row_id).innerHTML += `${renderButton(ctrl.name, 'icon btn_icon', ctrl.name, ctrl.label, ctrl.size, ctrl.color, true)}`;
   }
 }
+
 function beginButtons() {
   btn_row_id = 'buttons_row#' + btn_row_count;
   btn_row_count++;
@@ -116,12 +119,14 @@ function beginButtons() {
   <div id="${btn_row_id}" class="control control_nob control_scroll"></div>
   `;
 }
+
 function endButtons() {
-  if (btn_row_id && EL(btn_row_id).getElementsByTagName('*').length == 1) {
+  if (btn_row_id && EL(btn_row_id).getElementsByTagName('*').length === 1) {
     EL(btn_row_id).innerHTML = "<div></div>" + EL(btn_row_id).innerHTML + "<div></div>";  // center button
   }
   btn_row_id = null;
 }
+
 function renderButton(title, className, name, label, size, color = null, is_icon = false) {
   let col = (color != null) ? ((is_icon ? ';color:' : ';background:') + intToCol(color)) : '';
   return `<button id="#${name}" title='${title}' style="font-size:${size}px${col}" class="${className}" onclick="set_h('${name}',2)" onmousedown="if(!touch)click_h('${name}',1)" onmouseup="if(!touch&&pressId)click_h('${name}',0)" onmouseleave="if(pressId&&!touch)click_h('${name}',0);" ontouchstart="touch=1;click_h('${name}',1)" ontouchend="click_h('${name}',0)">${label}</button>`;
@@ -135,7 +140,7 @@ function addTabs(ctrl) {
   let tabs = '';
   let labels = ctrl.text.toString().split(',');
   for (let i in labels) {
-    let sel = (i == ctrl.value) ? 'class="tab_act"' : '';
+    let sel = (i === ctrl.value) ? 'class="tab_act"' : '';
     tabs += `<li onclick="set_h('${ctrl.name}','${i}')" ${sel}>${labels[i]}</li>`;
   }
 
@@ -164,22 +169,24 @@ function addMenu(ctrl) {
   let inner = '';
   let labels = ctrl.text.toString().split(',');
   for (let i in labels) {
-    let sel = (i == ctrl.value) ? 'menu_act' : '';
+    let sel = (i === ctrl.value) ? 'menu_act' : '';
     inner += `<div onclick="menuClick(${i})" class="menu_item ${sel}">${labels[i]}</div>`;
   }
   document.querySelector(':root').style.setProperty('--menu_h', ((labels.length + 2) * 35 + 10) + 'px');
   EL('menu_user').innerHTML = inner;
 }
+
 function menuClick(num) {
   menu_show(0);
   menuDeact();
-  if (screen != 'device') show_screen('device');
+  if (screen !== 'device') show_screen('device');
   set_h('_menu', num);
 }
+
 function menuDeact() {
   let els = document.getElementById('menu_user').children;
   for (let el in els) {
-    if (els[el].tagName == 'DIV') els[el].classList.remove('menu_act');
+    if (els[el].tagName === 'DIV') els[el].classList.remove('menu_act');
   }
   EL('menu_info').classList.remove('menu_act');
   EL('menu_fsbr').classList.remove('menu_act');
@@ -215,17 +222,20 @@ function addInput(ctrl) {
   `;
   }
 }
+
 function sendInput(name) {
   let inp = EL('#' + name);
   const r = new RegExp(inp.pattern);
   if (r.test(inp.value)) set_h(name, inp.value);
   else showPopupError("Wrong text!");
 }
+
 function checkLen(arg, len) {
   if (len && arg.value.length > len) arg.value = arg.value.substring(0, len);
 }
+
 function checkEnter(arg) {
-  if (event.key == 'Enter') {
+  if (event.key === 'Enter') {
     if (arg.pattern) sendInput(arg.name);
     else set_h(arg.name, arg.value);
   }
@@ -263,8 +273,9 @@ function addPass(ctrl) {
     `;
   }
 }
+
 function togglePass(id) {
-  if (EL(id).type == 'text') EL(id).type = 'password';
+  if (EL(id).type === 'text') EL(id).type = 'password';
   else EL(id).type = 'text';
 }
 
@@ -295,9 +306,13 @@ function addSlider(ctrl) {
   `;
   }
 }
+
 function moveSliders() {
-  document.querySelectorAll('.c_range, .c_rangeW').forEach(x => { moveSlider(x, false) });
+  document.querySelectorAll('.c_range, .c_rangeW').forEach(x => {
+    moveSlider(x, false)
+  });
 }
+
 function moveSlider(arg, sendf = true) {
   if (dis_scroll_f) {
     dis_scroll_f--;
@@ -329,6 +344,7 @@ function addSwitch(ctrl) {
   `;
   }
 }
+
 function addSwitchIcon(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -352,6 +368,7 @@ function addSwitchIcon(ctrl) {
   `;
   }
 }
+
 function addSwitchText(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -396,6 +413,7 @@ function addDate(ctrl) {
     `;
   }
 }
+
 function addTime(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -416,6 +434,7 @@ function addTime(ctrl) {
   `;
   }
 }
+
 function addDateTime(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -436,6 +455,7 @@ function addDateTime(ctrl) {
   `;
   }
 }
+
 function getUnix(arg) {
   return Math.floor(arg.valueAsNumber / 1000);
 }
@@ -478,13 +498,15 @@ function addColor(ctrl) {
     `;
   }*/
 }
+
 function openPicker(id) {
   EL('color_cont#' + id).getElementsByTagName('button')[0].click()
 }
+
 function showPickers() {
   for (let picker in pickers) {
     let id = '#' + picker;
-    let obj = Pickr.create({
+    pickers[picker] = Pickr.create({
       el: EL(id),
       theme: 'nano',
       default: pickers[picker],
@@ -503,7 +525,6 @@ function showPickers() {
       set_h(picker, colToInt(col));
       EL('color_btn' + id).style.color = col;
     });
-    pickers[picker] = obj;
   }
 }
 
@@ -537,17 +558,20 @@ function addSpinner(ctrl) {
   `;
   }
 }
+
 function spinSpinner(el, dir) {
-  let num = (dir == 1) ? el.previousElementSibling : el.nextElementSibling;
+  let num = (dir === 1) ? el.previousElementSibling : el.nextElementSibling;
   let val = Number(num.value) + Number(num.step) * Number(dir);
   val = Math.max(Number(num.min), val);
   val = Math.min(Number(num.max), val);
   num.value = formatToStep(val, num.step);
   resizeSpinner(num);
 }
+
 function resizeSpinner(el) {
   el.style.width = el.value.length + 'ch';
 }
+
 function resizeSpinners() {
   let spinners = document.querySelectorAll(".spinner");
   spinners.forEach((sp) => resizeSpinner(sp));
@@ -588,6 +612,7 @@ function addFlags(ctrl) {
   `;
   }
 }
+
 function resizeFlags() {
   let chtext = document.querySelectorAll(".chtext");
   let chtext_s = document.querySelectorAll(".chtext_s");
@@ -597,6 +622,7 @@ function resizeFlags() {
     chtext_s[i].style.width = len + 'ch';
   });
 }
+
 function encodeFlags(name) {
   let weeks = document.getElementsByName(name);
   let encoded = 0;
@@ -624,8 +650,9 @@ function addCanvas(ctrl) {
     </div>
     `;
   }
-  canvases[ctrl.name] = { name: ctrl.name, width: ctrl.width, height: ctrl.height, value: ctrl.value };
+  canvases[ctrl.name] = {name: ctrl.name, width: ctrl.width, height: ctrl.height, value: ctrl.value};
 }
+
 function showCanvases() {
   Object.values(canvases).forEach(canvas => {
     let cv = EL('#' + canvas.name);
@@ -641,6 +668,7 @@ function showCanvases() {
     drawCanvas(canvas);
   });
 }
+
 function drawCanvas(canvas) {
   let ev_str = '';
   let cv = EL('#' + canvas.name);
@@ -649,6 +677,7 @@ function drawCanvas(canvas) {
     v *= canvas.scale;
     return v >= 0 ? v : (h ? cv.height : cv.width) - v;
   }
+
   function scale() {
     return canvas.scale;
   }
@@ -662,7 +691,7 @@ function drawCanvas(canvas) {
     let cmd = parseInt(d, 10);
 
     if (!isNaN(cmd) && cmd <= 37) {
-      if (div == 1 || div == 2) {
+      if (div === 1 || div === 2) {
         let val = d.slice(div + 1);
         let vals = val.split(',');
         if (cmd <= 2) ev_str += ('cx.' + cmd_list[cmd] + '=\'' + intToColA(val) + '\';');
@@ -677,11 +706,11 @@ function drawCanvas(canvas) {
             str += `cv_map(${vals[i]},${(i % 2)})`;
           }
           ev_str += (str + ');');
-        } else if (cmd == 27) {
+        } else if (cmd === 27) {
           ev_str += (`cx.${cmd_list[cmd]}(cv_map(${vals[0]},0),cv_map(${vals[1]},1),cv_map(${vals[2]},0),${vals[3]},${vals[4]},${vals[5]});`);
         } else if (cmd <= 29) {
           ev_str += (`cx.${cmd_list[cmd]}(${vals[0]},cv_map(${vals[1]},0),cv_map(${vals[2]},1),${vals[3]});`);
-        } else if (cmd == 30) {
+        } else if (cmd === 30) {
           let str = 'cx.' + cmd_list[cmd] + '(';
           for (let i in vals) {
             if (i > 0) {
@@ -689,13 +718,13 @@ function drawCanvas(canvas) {
             } else str += vals[i];
           }
           ev_str += (str + ');');
-        } else if (cmd == 31) {
+        } else if (cmd === 31) {
           let str = 'cx.' + cmd_list[cmd] + '(';
           for (let i = 0; i < 4; i++) {
             if (i > 0) str += ',';
             str += `cv_map(${vals[i]},${(i % 2)})`;
           }
-          if (vals.length == 5) str += `,${vals[4] * scale()}`;
+          if (vals.length === 5) str += `,${vals[4] * scale()}`;
           else {
             str += ',[';
             for (let i = 4; i < vals.length; i++) {
@@ -716,6 +745,7 @@ function drawCanvas(canvas) {
   eval(ev_str);
   canvas.value = null;
 }
+
 function clickCanvas(id, e) {
   if (!(id in canvases)) return;
   let rect = EL('#' + id).getBoundingClientRect();
@@ -744,8 +774,18 @@ function addGauge(ctrl) {
     </div>
     `;
   }
-  gauges[ctrl.name] = { perc: null, name: ctrl.name, value: Number(ctrl.value), min: Number(ctrl.min), max: Number(ctrl.max), step: Number(ctrl.step), text: ctrl.text, color: ctrl.color };
+  gauges[ctrl.name] = {
+    perc: null,
+    name: ctrl.name,
+    value: Number(ctrl.value),
+    min: Number(ctrl.min),
+    max: Number(ctrl.max),
+    step: Number(ctrl.step),
+    text: ctrl.text,
+    color: ctrl.color
+  };
 }
+
 function drawGauge(g) {
   let cv = EL('#' + g.name);
   if (!cv || !cv.parentNode.clientWidth) return;
@@ -757,7 +797,7 @@ function drawGauge(g) {
   else {
     if (Math.abs(g.perc - perc) <= 0.2) g.perc = perc;
     else g.perc += (perc - g.perc) * 0.2;
-    if (g.perc != perc) setTimeout(() => drawGauge(g), 30);
+    if (g.perc !== perc) setTimeout(() => drawGauge(g), 30);
   }
 
   let cx = cv.getContext("2d");
@@ -797,8 +837,8 @@ function drawGauge(g) {
     (formatToStep(g.min, g.step) + text).length,
     (formatToStep(g.max, g.step) + text).length
   );
-  if (len == 1) text += '  ';
-  else if (len == 2) text += ' ';
+  if (len === 1) text += '  ';
+  else if (len === 2) text += ' ';
 
   let w = Math.max(
     cx.measureText(formatToStep(g.value, g.step) + text).width,
@@ -820,6 +860,7 @@ function drawGauge(g) {
   cx.fillText(g.min, cx.lineWidth, cv.height * 0.92);
   cx.fillText(g.max, cv.width - cx.lineWidth, cv.height * 0.92);
 }
+
 function showGauges() {
   Object.values(gauges).forEach(gauge => {
     drawGauge(gauge);
@@ -842,10 +883,11 @@ function addJoy(ctrl) {
   }
   joys[ctrl.name] = ctrl;
 }
+
 function showJoys() {
   for (let joy in joys) {
     joys[joy].joy = new Joystick(joy,
-      joys[joy].type == 'dpad',
+      joys[joy].type === 'dpad',
       intToCol(joys[joy].color == null ? colors[cfg.maincolor] : joys[joy].color),
       joys[joy].auto,
       joys[joy].exp,
@@ -874,6 +916,7 @@ function addSpace(ctrl) {
   `;
   }
 }
+
 function addTitle(ctrl) {
   endWidgets();
   endButtons();
@@ -883,6 +926,7 @@ function addTitle(ctrl) {
   </div>
   `;
 }
+
 function addLED(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -918,6 +962,7 @@ function addLED(ctrl) {
     }
   }
 }
+
 function addIcon(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -938,6 +983,7 @@ function addIcon(ctrl) {
     `;
   }
 }
+
 function addLabel(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -957,6 +1003,7 @@ function addLabel(ctrl) {
   `;
   }
 }
+
 function addSelect(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -964,7 +1011,7 @@ function addSelect(ctrl) {
   let elms = ctrl.text.toString().split(',');
   let options = '';
   for (let i in elms) {
-    let sel = (i == ctrl.value) ? 'selected' : '';
+    let sel = (i === ctrl.value) ? 'selected' : '';
     options += `<option value="${i}" ${sel}>${elms[i]}</option>`;
   }
   let col = (ctrl.color != null) ? `color:${intToCol(ctrl.color)}` : '';
@@ -986,6 +1033,7 @@ function addSelect(ctrl) {
   `;
   }
 }
+
 function addLog(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -1004,6 +1052,7 @@ function addLog(ctrl) {
   `;
   }
 }
+
 function addDisplay(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -1022,6 +1071,7 @@ function addDisplay(ctrl) {
   `;
   }
 }
+
 function addHTML(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -1037,6 +1087,7 @@ function addHTML(ctrl) {
     `;
   }
 }
+
 function addImage(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -1053,13 +1104,14 @@ function addImage(ctrl) {
     </div>
     `;
   }
-  files.push({ id: '#' + ctrl.name, path: ctrl.value, type: 'img' });
+  files.push({id: '#' + ctrl.name, path: ctrl.value, type: 'img'});
 }
+
 function addStream(ctrl, conn, ip) {
   checkWidget(ctrl);
   endButtons();
   let inner = '<label>No connection</label>';
-  if (conn == Conn.WS && ip != 'unset') inner = `<img style="width:100%" src="http://${ip}:${ctrl.port}/">`;
+  if (conn === Conn.WS && ip !== 'unset') inner = `<img style="width:100%" src="http://${ip}:${ctrl.port}/">`;
   if (wid_row_id) {
     addWidget(ctrl.tab_w, '', ctrl.wlabel, inner);
   } else {
@@ -1070,6 +1122,7 @@ function addStream(ctrl, conn, ip) {
     `;
   }
 }
+
 function addTable(ctrl) {
   if (checkDup(ctrl)) return;
   checkWidget(ctrl);
@@ -1102,6 +1155,7 @@ function addTable(ctrl) {
 function checkWidget(ctrl) {
   if (ctrl.tab_w && !wid_row_id) beginWidgets(null, true);
 }
+
 function beginWidgets(ctrl = null, check = false) {
   if (!check) endButtons();
   wid_row_size = 0;
@@ -1113,10 +1167,12 @@ function beginWidgets(ctrl = null, check = false) {
   <div class="widget_row" id="${wid_row_id}" ${st}></div>
   `;
 }
+
 function endWidgets() {
   endButtons();
   wid_row_id = null;
 }
+
 function addWidget(width, name, label, inner, height = 0, noback = false) {
   wid_row_size += width;
   if (wid_row_size > 100) {
@@ -1125,7 +1181,7 @@ function addWidget(width, name, label, inner, height = 0, noback = false) {
   }
 
   let h = height ? ('height:' + height + 'px') : '';
-  let lbl = (label && label != '_no') ? `<div class="widget_label" title="${name}">${label}<span id="wlabel#${name}"></span></div>` : '';
+  let lbl = (label && label !== '_no') ? `<div class="widget_label" title="${name}">${label}<span id="wlabel#${name}"></span></div>` : '';
   EL(wid_row_id).innerHTML += `
   <div class="widget" style="width:${width}%;${h}">
     <div class="widget_inner ${noback ? 'widget_space' : ''}">
@@ -1140,14 +1196,15 @@ function addWidget(width, name, label, inner, height = 0, noback = false) {
 
 // ================ UTILS =================
 function showNotif(text, name) {
-  if (!("Notification" in window) || Notification.permission != 'granted') return;
+  if (!("Notification" in window) || Notification.permission !== 'granted') return;
   let descr = name + ' (' + new Date(Date.now()).toLocaleString() + ')';
   navigator.serviceWorker.getRegistration().then(function (reg) {
-    reg.showNotification(text, { body: descr, vibrate: true });
+    reg.showNotification(text, {body: descr, vibrate: true});
   });
   //new Notification(text, {body: descr});
   //self.registration.showNotification(text, {body: descr});
 }
+
 function checkDup(ctrl) {
   if (EL('#' + ctrl.name)) {
     dup_names.push(' ' + ctrl.name);
@@ -1155,15 +1212,18 @@ function checkDup(ctrl) {
   }
   return 0;
 }
+
 function formatToStep(val, step) {
   step = step.toString();
   if (step.includes('.')) return Number(val).toFixed((step.split('.')[1]).toString().length);
   else return val;
 }
+
 function scrollDown() {
   let logs = document.querySelectorAll(".c_log");
   logs.forEach((log) => log.scrollTop = log.scrollHeight);
 }
+
 function parseCSV(str) {
   // https://stackoverflow.com/a/14991797
   const arr = [];
@@ -1172,12 +1232,35 @@ function parseCSV(str) {
     let cc = str[c], nc = str[c + 1];
     arr[row] = arr[row] || [];
     arr[row][col] = arr[row][col] || '';
-    if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }
-    if (cc == '"') { quote = !quote; continue; }
-    if (cc == ',' && !quote) { ++col; continue; }
-    if (cc == '\r' && nc == '\n' && !quote) { ++row; col = 0; ++c; continue; }
-    if (cc == '\n' && !quote) { ++row; col = 0; continue; }
-    if (cc == '\r' && !quote) { ++row; col = 0; continue; }
+    if (cc === '"' && quote && nc === '"') {
+      arr[row][col] += cc;
+      ++c;
+      continue;
+    }
+    if (cc === '"') {
+      quote = !quote;
+      continue;
+    }
+    if (cc === ',' && !quote) {
+      ++col;
+      continue;
+    }
+    if (cc === '\r' && nc === '\n' && !quote) {
+      ++row;
+      col = 0;
+      ++c;
+      continue;
+    }
+    if (cc === '\n' && !quote) {
+      ++row;
+      col = 0;
+      continue;
+    }
+    if (cc === '\r' && !quote) {
+      ++row;
+      col = 0;
+      continue;
+    }
     arr[row][col] += cc;
   }
   return arr;
@@ -1187,7 +1270,7 @@ function parseCSV(str) {
 function nextFile() {
   if (!files.length) return;
   fetch_to_file = true;
-  if (devices_t[focused].conn == Conn.WS && devices_t[focused].http_cfg.download && files[0].path.startsWith(devices_t[focused].http_cfg.path)) {
+  if (devices_t[focused].conn === Conn.WS && devices_t[focused].http_cfg.download && files[0].path.startsWith(devices_t[focused].http_cfg.path)) {
     downloadFile();
     EL('wlabel' + files[0].id).innerHTML = ' [fetch...]';
   } else {
@@ -1205,7 +1288,7 @@ function downloadFile() {
     processFile(Math.round(e.loaded * 100 / e.total));
   };
   xhr.onloadend = function (e) {
-    if (e.loaded && e.loaded == e.total) {
+    if (e.loaded && e.loaded === e.total) {
       processFile(100);
       var reader = new FileReader();
       reader.readAsDataURL(xhr.response);
@@ -1231,9 +1314,11 @@ function downloadFileEnd(data) {
   fetching = null;
   stopFS();
 }
+
 function processFile(perc) {
   if (EL('wlabel' + files[0].id)) EL('wlabel' + files[0].id).innerHTML = ` [${perc}%]`;
 }
+
 function errorFile() {
   if (EL('wlabel' + files[0].id)) EL('wlabel' + files[0].id).innerHTML = ' [error]';
   files.shift();

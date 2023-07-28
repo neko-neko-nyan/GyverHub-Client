@@ -40,10 +40,10 @@ const theme_cols = [
 ];
 
 function isSSL() {
-  return window.location.protocol == 'https:';
+  return window.location.protocol === 'https:';
 }
 function isLocal() {
-  return window.location.href.startsWith('file') || checkIP(window_ip()) || window_ip() == 'localhost';
+  return window.location.href.startsWith('file') || checkIP(window_ip()) || window_ip() === 'localhost';
 }
 function isApp() {
   return !non_app;
@@ -123,12 +123,12 @@ function browser() {
   else if (navigator.userAgent.includes("Chrome")) return 'chrome';
   else if (navigator.userAgent.includes("Safari")) return 'safari';
   else if (navigator.userAgent.includes("Firefox")) return 'firefox';
-  else if ((navigator.userAgent.includes("MSIE")) || (!!document.documentMode == true)) return 'IE';
+  else if ((navigator.userAgent.includes("MSIE")) || (!!document.documentMode)) return 'IE';
   else return 'unknown';
 }
 function disableScroll() {
   TopScroll = window.pageYOffset || document.documentElement.scrollTop;
-  LeftScroll = window.pageXOffset || document.documentElement.scrollLeft,
+  LeftScroll = window.pageXOffset || document.documentElement.scrollLeft;
     window.onscroll = function () {
       window.scrollTo(LeftScroll, TopScroll);
     };
@@ -207,7 +207,7 @@ function getLocalIP() {
 
     if (1 || window.mozRTCPeerConnection) {      // FF [and now Chrome!] needs a channel/stream to proceed
       rtc.createDataChannel('', { reliable: false });
-    };
+    }
 
     rtc.onicecandidate = function (evt) {
       // convert the candidate to SDP so we can run it through our general parser

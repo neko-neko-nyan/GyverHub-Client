@@ -55,7 +55,6 @@ body {
   font-family: var(--font_f);
   font-size: 17px;
   cursor: default;
-  height: 100%;
 }
 
 body::-webkit-scrollbar {
@@ -90,7 +89,7 @@ body::-webkit-scrollbar-thumb {
   position: fixed;
   z-index: 4;
   /*box-shadow: 0px 5px 0px 0px var(--back);*/
-  box-shadow: 0px 0px 7px 0px var(--shad);
+  box-shadow: 0 0 7px 0 var(--shad);
 }
 
 .title_inn {
@@ -169,7 +168,7 @@ body::-webkit-scrollbar-thumb {
 .back_btn {
   display: none;
   font-size: 22px;
-  padding: 0px;
+  padding: 0;
   width: unset !important;
 }
 
@@ -182,7 +181,7 @@ body::-webkit-scrollbar-thumb {
 
 .main_inn {
   padding-top: 65px;
-  margin: 0px 5px;
+  margin: 0 5px;
 }
 
 .main_col {
@@ -196,7 +195,7 @@ body::-webkit-scrollbar-thumb {
 .notice {
   color: var(--font_inv);
   background: var(--prim);
-  box-shadow: 0px 0px 7px #0007;
+  box-shadow: 0 0 7px #0007;
   border-radius: 8px;
   position: fixed;
   bottom: 30px;
@@ -215,13 +214,13 @@ body::-webkit-scrollbar-thumb {
   }
 
   to {
-    opacity: 0%;
+    opacity: 0;
   }
 }
 
 @keyframes fade-in {
   from {
-    opacity: 0%;
+    opacity: 0;
   }
 
   to {
@@ -251,7 +250,7 @@ body::-webkit-scrollbar-thumb {
   height: 28px;
   margin-top: -29px;
   background: var(--tab);
-  box-shadow: 0px 1px var(--tab);
+  box-shadow: 0 1px var(--tab);
 }
 
 .footer_inner {
@@ -267,7 +266,7 @@ body::-webkit-scrollbar-thumb {
 .footer_inner a {
   color: var(--font2);
   text-decoration: none;
-  padding: 0px 5px;
+  padding: 0 5px;
   font-size: 15px !important;
 }
 
@@ -302,10 +301,10 @@ body::-webkit-scrollbar-thumb {
 
 .cfg_col {
   margin-bottom: 12px;
-  padding: 1px 0px 5px 0px;
+  padding: 1px 0 5px 0;
   border-radius: 10px;
   background: var(--tab);
-  box-shadow: 0 0 10px 0px #00000030;
+  box-shadow: 0 0 10px 0 #00000030;
 }
 
 .cfg_row {
@@ -378,7 +377,7 @@ body::-webkit-scrollbar-thumb {
 .cfg_btn_tab {
   cursor: pointer;
   color: var(--prim);
-  padding: 0px 6px;
+  padding: 0 6px;
 }
 
 .cfg_btn_row {
@@ -459,7 +458,6 @@ body::-webkit-scrollbar-thumb {
   /*display: inline-block;*/
   align-items: center;
   cursor: pointer;
-  width: 50%;
   -webkit-box-sizing: border-box;
   -moz-box-sizing: border-box;
   box-sizing: border-box;
@@ -471,7 +469,7 @@ body::-webkit-scrollbar-thumb {
 .device_inner {
   background: var(--tab);
   border-radius: 10px;
-  box-shadow: 0 0 10px 0px #00000020;
+  box-shadow: 0 0 10px 0 #00000020;
   width: 100%;
   height: 100%;
   display: flex;
@@ -479,7 +477,7 @@ body::-webkit-scrollbar-thumb {
 }
 
 .device_inner:hover {
-  box-shadow: 0 0 10px 0px #00000030;
+  box-shadow: 0 0 10px 0 #00000030;
 }
 
 .offline {
@@ -511,7 +509,7 @@ body::-webkit-scrollbar-thumb {
   width: 40px;
   display: flex;
   justify-content: center;
-  margin: 0px 3px 0 7px;
+  margin: 0 3px 0 7px;
 }
 
 .d_icon_empty {
@@ -581,7 +579,7 @@ body::-webkit-scrollbar-thumb {
 /* SWITCH */
 .switch {
   /*margin: 10px 2px 5px 2px;*/
-  margin: 0px 2px -10px 2px;
+  margin: 0 2px -10px 2px;
   position: relative;
   display: inline-block;
   width: 52px;
@@ -789,7 +787,6 @@ input[type=number] {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1px;
   white-space: nowrap;
   min-height: 35px;
   border-radius: 7px;
@@ -891,7 +888,7 @@ select option {
 }
 
 .c_col {
-  padding: 0px;
+  padding: 0;
   background: none;
   width: 35px;
   height: 40px;
@@ -935,7 +932,6 @@ img.colorpick-eyedropper-input-trigger {
 
 .btn_mini {
   font-size: 19px !important;
-  padding: 7px;
   margin: 3px;
   padding: 4px 8px;
 }
@@ -958,7 +954,7 @@ img.colorpick-eyedropper-input-trigger {
   font-size: 50px;
   color: var(--prim);
   cursor: pointer;
-  margin: 0px 7px;
+  margin: 0 7px;
 }
 
 .btn_icon:hover {
@@ -971,7 +967,7 @@ img.colorpick-eyedropper-input-trigger {
 
 /* LED */
 .led_cont {
-  margin: 0px 2px -10px 2px;
+  margin: 0 2px -10px 2px;
   position: relative;
   display: inline-block;
   width: 28px;
@@ -997,14 +993,14 @@ img.colorpick-eyedropper-input-trigger {
   height: 28px;
   width: 28px;
   background: #cb1a1a;
-  box-shadow: inset 1px 3px 0px 0px #fff7;
+  box-shadow: inset 1px 3px 0 0 #fff7;
 }
 
 input:checked+.led {}
 
 input:checked+.led:before {
   background: #33c00b;
-  box-shadow: inset 1px 3px 0px 0px #fff7;
+  box-shadow: inset 1px 3px 0 0 #fff7;
 }
 
 /* SWITCH_I */
@@ -1012,8 +1008,8 @@ input:checked+.led:before {
   position: relative;
   display: inline-block;
   margin: -45px 45px 0 0;
-  width: 0px;
-  height: 0px;
+  width: 0;
+  height: 0;
 }
 
 .switch_i_cont input {
@@ -1058,8 +1054,8 @@ input:checked+.switch_i {
   position: relative;
   display: inline-block;
   margin: -45px 45px 0 0;
-  width: 0px;
-  height: 0px;
+  width: 0;
+  height: 0;
 }
 
 .led_i_cont input {
@@ -1068,8 +1064,8 @@ input:checked+.switch_i {
 
 .led_i_cont_tab {
   margin: -70px 70px 0 0;
-  width: 0px;
-  height: 0px;
+  width: 0;
+  height: 0;
 }
 
 .led_i_tab {
@@ -1086,8 +1082,8 @@ input:checked+.led_i_tab {
 /* SWITCH I tab */
 .switch_i_cont_tab {
   margin: -65px 65px 0 0;
-  width: 0px;
-  height: 0px;
+  width: 0;
+  height: 0;
 }
 
 .switch_i_tab {
@@ -1142,7 +1138,7 @@ input:checked+.switch_i_tab {
   color: var(--font);
   padding: 8px 12px;
   margin-bottom: 4px;
-  box-shadow: 0px 5px #0000;
+  box-shadow: 0 5px #0000;
 }
 
 .navtab>ul>li:hover {
@@ -1151,7 +1147,7 @@ input:checked+.switch_i_tab {
 
 .navtab .tab_act {
   color: var(--prim) !important;
-  box-shadow: 0px 4px var(--prim) !important;
+  box-shadow: 0 4px var(--prim) !important;
 }
 
 /* NAVTAB TAB */
@@ -1248,7 +1244,7 @@ input:checked+.chbutton_s {
 .spinner {
   width: 50px;
   background: none;
-  margin: 0px 5px;
+  margin: 0 5px;
   color: var(--font2);
   text-align: center;
   padding: 0 2px;
@@ -1265,7 +1261,7 @@ input:checked+.chbutton_s {
   border-radius: 0;
   padding-right: 35px;
   margin-right: 5px;
-  box-shadow: 0px 2px 0px 0px var(--prim);
+  box-shadow: 0 2px 0 0 var(--prim);
 }
 
 .c_inp:focus {
@@ -1336,7 +1332,6 @@ input:checked+.chbutton_s {
 /* =================================== */
 .pass_inner {
   padding: 0;
-  margin: 0;
   height: 70px;
   margin: 10px 5px;
 }
@@ -1345,7 +1340,7 @@ input:checked+.chbutton_s {
   width: 100%;
   height: 100%;
   font-size: 40px;
-  margin: 0px 5px;
+  margin: 0 5px;
   cursor: pointer;
 }
 
@@ -1362,7 +1357,7 @@ input:checked+.chbutton_s {
 .pass_inp_inner {
   display: flex;
   justify-content: center;
-  padding: 0px 5px;
+  padding: 0 5px;
 }
 
 .empty_b {
@@ -1398,14 +1393,14 @@ input:checked+.chbutton_s {
   border-radius: 7px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0px 3px 0px 0px inset #ffffff05, 0 0 10px 0px #00000021;
+  box-shadow: 0 3px 0 0 inset #ffffff05, 0 0 10px 0 #00000021;
   /*0px -3px 0px 0px inset #00000030*/
 }
 
 .widget_label {
   font-size: 11.5px;
   color: var(--font3);
-  margin: 3px 7px 0px 7px;;
+  margin: 3px 7px 0 7px;;
   text-transform: uppercase;
   white-space: nowrap;
   overflow-x: clip;
@@ -1438,7 +1433,7 @@ input:checked+.chbutton_s {
 /* =================================== */
 
 #fsbr_inner {
-  margin: 10px 0px;
+  margin: 10px 0;
 }
 
 .fs_err {
@@ -1503,8 +1498,8 @@ input:checked+.chbutton_s {
 
 .upload_row {
   display: flex;
-  margin: 10px 0px;
-  padding: 0px 15px;
+  margin: 10px 0;
+  padding: 0 15px;
 }
 
 .upl_button {
@@ -1513,7 +1508,7 @@ input:checked+.chbutton_s {
   padding: 5px;
   margin: 0;
   width: 90px;
-  border-radius: 0px 5px 5px 0px;
+  border-radius: 0 5px 5px 0;
 }
 
 .drop_area {}
@@ -1623,7 +1618,7 @@ input:checked+.chbutton_s {
   top: 50px;
   background: var(--tab);
   z-index: 3;
-  border-radius: 0px 0px 4px 4px;
+  border-radius: 0 0 4px 4px;
   max-width: var(--ui_width);
 }
 
@@ -1667,7 +1662,7 @@ input:checked+.chbutton_s {
 .projects_inn {
   max-width: 750px;
   margin: auto;
-  padding: 0px 5px;
+  padding: 0 5px;
   padding-top: 65px;
 }
 
@@ -1678,7 +1673,6 @@ input:checked+.chbutton_s {
 
 .proj {
   align-items: center;
-  width: 50%;
   -webkit-box-sizing: border-box;
   -moz-box-sizing: border-box;
   box-sizing: border-box;
@@ -1689,7 +1683,7 @@ input:checked+.chbutton_s {
 .proj_inn {
   background: var(--tab);
   border-radius: 5px;
-  box-shadow: 0 0 10px 0px #00000020;
+  box-shadow: 0 0 10px 0 #00000020;
   width: 100%;
   height: 100%;
   -webkit-box-sizing: border-box;

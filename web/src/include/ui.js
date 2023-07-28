@@ -11,25 +11,24 @@ let cfg = {
 };
 
 // ============= STARTUP ============
-window.onload = function () {
+window.onload = async function () {
   render_main(app_version);
   EL('title').innerHTML = app_title;
-  let title = 'GyverHub v' + app_version + ' [' + hub.cfg.client_id + '] ' + (isPWA() ? 'PWA ' : '') + (isSSL() ? 'SSL ' : '') + (isLocal() ? 'Local ' : '') + (isESP() ? 'ESP ' : '') + (isApp() ? 'App ' : '');
-  EL('title').title = title;
+  EL('title').title = 'GyverHub v' + app_version + ' [' + hub.cfg.client_id + '] ' + (isPWA() ? 'PWA ' : '') + (isSSL() ? 'SSL ' : '') + (isLocal() ? 'Local ' : '') + (isESP() ? 'ESP ' : '') + (isApp() ? 'App ' : '');
 
   load_cfg();
   load_hcfg();
   if (isESP()) hub.cfg.use_ws = true;
-  update_ip();
+  await update_ip();
   update_theme();
   set_drop();
   key_change();
   handle_back();
-  register_SW();
+  await register_SW();
   if (cfg.use_pin) show_keypad(true);
-  else startup();
+  else await startup();
 }
-function startup() {
+async function startup() {
   render_selects();
   render_info();
   apply_cfg();
@@ -37,8 +36,8 @@ function startup() {
   show_screen('main');
   load_devices();
   render_devices();
-  discover();
-  if ('Notification' in window && Notification.permission == 'default') Notification.requestPermission();
+  await discover();
+  if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission();
 
   /*NON-ESP*/
   if (isSSL()) {
@@ -51,13 +50,13 @@ function startup() {
   }
   if (isApp()) EL('app_block').style.display = 'none';
 
-  serial_change();
-  if (hub.cfg.use_mqtt) mq_start();
+  await serial_change();
+  if (hub.cfg.use_mqtt) await hub.mqtt.start();
 
   setInterval(() => {
-    if (hub.cfg.use_mqtt && !mq_state()) {
+    if (hub.cfg.use_mqtt && !hub.mqtt.connected) {
       log('MQTT reconnect');
-      mq_start();
+      hub.mqtt.start();
     }
   }, 5000);
 
@@ -66,10 +65,10 @@ function startup() {
   }, 1000);
   /*/NON-ESP*/
 }
-function register_SW() {
+async function register_SW() {
   /*NON-ESP*/
   if ('serviceWorker' in navigator && !isLocal() && !isApp()) {
-    navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.register('/sw.js');
     window.addEventListener('beforeinstallprompt', (e) => deferredPrompt = e);
   }
   /*/NON-ESP*/
@@ -100,12 +99,12 @@ function set_drop() {
   });
 }
 function key_change() {
-  document.addEventListener('keydown', function (e) {
+  document.addEventListener('keydown', async function (e) {
     switch (e.keyCode) {
       case 116: // refresh on F5
         if (!e.ctrlKey) {
           e.preventDefault();
-          refresh_h();
+          await refresh_h();
         }
         break;
 
@@ -124,20 +123,19 @@ function key_change() {
 }
 function handle_back() {
   window.history.pushState({ page: 1 }, "", "");
-  window.onpopstate = function (e) {
+  window.onpopstate = async function () {
     window.history.pushState({ page: 1 }, "", "");
-    back_h();
+    await back_h();
   }
 }
-function update_ip() {
+async function update_ip() {
   /*NON-ESP*/
   if (!Boolean(window.webkitRTCPeerConnection || window.mozRTCPeerConnection)) return;
-  getLocalIP().then((ip) => {
-    if (ip.indexOf("local") < 0) {
-      EL('local_ip').value = ip;
-      hub.cfg.local_ip = ip;
-    }
-  });
+  const ip = await getLocalIP();
+  if (ip.indexOf("local") < 0) {
+    EL('local_ip').value = ip;
+    hub.cfg.local_ip = ip;
+  }
   /*/NON-ESP*/
   if (isESP()) {
     EL('local_ip').value = window_ip();
@@ -159,12 +157,12 @@ async function checkUpdates(id) {
   } catch (e) {
     return;
   }
-  if (proj.version == namever[1]) return;
-  if (id != focused) return;
+  if (proj.version === namever[1]) return;
+  if (id !== focused) return;
   updates.push(id);
   if (confirm('Available new version v' + proj.version + ' for device [' + namever[0] + ']. Notes:\n' + proj.notes + '\n\nUpdate firmware?')) {
     if ('ota_url' in proj) otaUrl(proj.ota_url, 'flash');
-    else otaUrl(`https://raw.githubusercontent.com/${namever[0]}/master/bin/firmware.bin${devices[id].ota_t == 'bin' ? '' : ('.' + devices[id].ota_t)}`, 'flash');
+    else otaUrl(`https://raw.githubusercontent.com/${namever[0]}/master/bin/firmware.bin${devices[id].ota_t === 'bin' ? '' : ('.' + devices[id].ota_t)}`, 'flash');
   }
 }
 async function pwa_install(ssl) {
@@ -194,7 +192,7 @@ async function loadProjects() {
     if (!proj) continue;
     let rep = proj.split('https://github.com/')[1];
     if (!rep) continue;
-    loadProj(rep);
+    await loadProj(rep);
   }
 }
 async function loadProj(rep) {
@@ -221,20 +219,20 @@ async function loadProj(rep) {
 /*/NON-ESP*/
 
 // =============== PIN ================
-function pass_type(v) {
+async function pass_type(v) {
   pass_inp.value += v;
   let hash = pass_inp.value.hashCode();
 
   if (pin_id) {   // device
-    if (hash == devices[pin_id].PIN) {
-      open_device(pin_id);
+    if (hash === devices[pin_id].PIN) {
+      await open_device(pin_id);
       pass_inp.value = '';
       devices_t[pin_id].granted = true;
     }
   } else {        // app
-    if (hash == cfg.pin) {
+    if (hash === cfg.pin) {
       EL('password').style.display = 'none';
-      startup();
+      await startup();
       pass_inp.value = '';
     }
   }
@@ -280,7 +278,7 @@ function update_info() {
   let id = focused;
   EL('info_break_sw').checked = devices[id].break_widgets;
   EL('info_names_sw').checked = devices[id].show_names;
-  EL('info_cli_sw').checked = EL('cli_cont').style.display == 'block';
+  EL('info_cli_sw').checked = EL('cli_cont').style.display === 'block';
 
   EL('info_id').innerHTML = id;
   EL('info_set').innerHTML = devices[id].prefix + '/' + id + '/set/*';
@@ -326,19 +324,19 @@ function render_selects() {
 function test_h() {
   show_screen('test');
 }
-function projects_h() {
+async function projects_h() {
   EL('projects').innerHTML = '';
   show_screen('projects');
-  loadProjects();
+  await loadProjects();
 }
-function refresh_h() {
-  if (screen == 'device') post('focus');
-  else if (screen == 'info') post('info');
-  else if (screen == 'fsbr') post('fsbr');
-  else discover();
+async function refresh_h() {
+  if (screen === 'device') await post('focus');
+  else if (screen === 'info') await post('info');
+  else if (screen === 'fsbr') await post('fsbr');
+  else await discover();
 }
-function back_h() {
-  if (EL('fsbr_edit').style.display == 'block') {
+async function back_h() {
+  if (EL('fsbr_edit').style.display === 'block') {
     editor_cancel();
     return;
   }
@@ -351,7 +349,7 @@ function back_h() {
   switch (screen) {
     case 'device':
       release_all();
-      close_device();
+      await close_device();
       break;
     case 'info':
     case 'fsbr':
@@ -360,7 +358,7 @@ function back_h() {
       show_screen('device');
       break;
     case 'config':
-      config_h();
+      await config_h();
       break;
     case 'pin':
     case 'projects':
@@ -369,12 +367,12 @@ function back_h() {
       break;
   }
 }
-function config_h() {
-  if (screen == 'config') {
+async function config_h() {
+  if (screen === 'config') {
     if (cfg_changed) save_cfg();
     cfg_changed = false;
     show_screen('main');
-    discover();
+    await discover();
   } else {
     show_screen('config');
   }
@@ -390,19 +388,19 @@ function menu_show(state) {
 function menu_h() {
   menu_show(!menu_f);
 }
-function info_h() {
+async function info_h() {
   stopFS();
   menuDeact();
   menu_show(0);
-  if (readModule(Modules.INFO)) post('info');
+  if (readModule(Modules.INFO)) await post('info');
   show_screen('info');
   EL('menu_info').classList.add('menu_act');
 }
-function fsbr_h() {
+async function fsbr_h() {
   menuDeact();
   menu_show(0);
   if (readModule(Modules.FSBR)) {
-    post('fsbr');
+    await post('fsbr');
     EL('fsbr_inner').innerHTML = waiter();
   }
   EL('fs_browser').style.display = readModule(Modules.FSBR) ? 'block' : 'none';
@@ -414,9 +412,9 @@ function fsbr_h() {
   show_screen('fsbr');
   EL('menu_fsbr').classList.add('menu_act');
 }
-function device_h(id) {
+async function device_h(id) {
   if (discovering) return;
-  if (!(id in devices_t) || devices_t[id].conn == Conn.NONE) {
+  if (!(id in devices_t) || devices_t[id].conn === Conn.NONE) {
     //delete_h(id);
     return;
   }
@@ -424,31 +422,31 @@ function device_h(id) {
   if (devices[id].PIN && !devices_t[id].granted) {
     pin_id = id;
     show_screen('pin');
-  } else open_device(id);
+  } else await open_device(id);
 }
-function open_device(id) {
+async function open_device(id) {
   /*NON-ESP*/
-  checkUpdates(id);
+  await checkUpdates(id);
   /*/NON-ESP*/
   focused = id;
 
   switch (devices_t[id].conn) {
     case Conn.SERIAL:
-      post('focus');
+      await post('focus');
       break;
 
     case Conn.BT:
-      post('focus');
+      await post('focus');
       break;
 
     case Conn.WS:
       refreshSpin(true);
-      ws_start(id);
+      await hub.ws.start(id);
       ws_focus_flag = true;
       break;
 
     case Conn.MQTT:
-      post('focus');
+      await post('focus');
       break;
   }
   log('Open device #' + id + ' via ' + ConnNames[devices_t[id].conn]);
@@ -458,25 +456,25 @@ function open_device(id) {
   show_screen('device');
   reset_ping();
 }
-function close_device() {
+async function close_device() {
   showErr(false);
   switch (devices_t[focused].conn) {
     case Conn.SERIAL:
-      post('unfocus');
+      await post('unfocus');
       break;
 
     case Conn.BT:
-      post('unfocus');
+      await post('unfocus');
       break;
 
     case Conn.WS:
       // 'unfocus' forbidden
-      ws_stop(focused);
+      await hub.ws.stop(focused);
       refreshSpin(false);
       break;
 
     case Conn.MQTT:
-      post('unfocus');
+      await post('unfocus');
       break;
   }
   log('Close device #' + focused);
@@ -532,7 +530,7 @@ function show_screen(nscreen) {
   footer_s.display = 'none';
   EL('title').innerHTML = app_title;
 
-  if (screen == 'main') {
+  if (screen === 'main') {
     conns_s.display = 'flex';
     version_s.display = 'unset';
     devices_s.display = 'grid';
@@ -543,46 +541,46 @@ function show_screen(nscreen) {
     EL('conn').innerHTML = '';
     showCLI(false);
 
-  } else if (screen == 'test') {
+  } else if (screen === 'test') {
     main_s.display = 'none';
     test_s.display = 'block';
     back_s.display = 'inline-block';
     EL('title').innerHTML = 'UI Test';
 
-  } else if (screen == 'projects') {
+  } else if (screen === 'projects') {
     main_s.display = 'none';
     proj_s.display = 'block';
     back_s.display = 'inline-block';
     EL('title').innerHTML = 'Projects';
 
-  } else if (screen == 'device') {
+  } else if (screen === 'device') {
     controls_s.display = 'block';
     icon_menu_s.display = 'inline-block';
     back_s.display = 'inline-block';
     icon_refresh_s.display = 'inline-block';
     EL('title').innerHTML = devices[focused].name;
 
-  } else if (screen == 'config') {
+  } else if (screen === 'config') {
     conns_s.display = 'flex';
     config_s.display = 'block';
     icon_cfg_s.display = 'inline-block';
     back_s.display = 'inline-block';
     EL('title').innerHTML = 'Config';
 
-  } else if (screen == 'info') {
+  } else if (screen === 'info') {
     info_s.display = 'block';
     icon_menu_s.display = 'inline-block';
     back_s.display = 'inline-block';
     EL('title').innerHTML = devices[focused].name + '/info';
     update_info();
 
-  } else if (screen == 'fsbr') {
+  } else if (screen === 'fsbr') {
     fsbr_s.display = 'block';
     icon_menu_s.display = 'inline-block';
     back_s.display = 'inline-block';
     EL('title').innerHTML = devices[focused].name + '/fs';
 
-  } else if (screen == 'pin') {
+  } else if (screen === 'pin') {
     back_s.display = 'inline-block';
     show_keypad(true);
   }
@@ -599,7 +597,7 @@ function delete_h(id) {
 
 // ============== CLI =============
 function printCLI(text, color) {
-  if (EL('cli_cont').style.display == 'block') {
+  if (EL('cli_cont').style.display === 'block') {
     if (EL('cli').innerHTML) EL('cli').innerHTML += '\n';
     let st = color ? `style="color:${intToCol(color)}"` : '';
     EL('cli').innerHTML += `><span ${st}">${text}</span>`;
@@ -609,7 +607,7 @@ function printCLI(text, color) {
 function toggleCLI() {
   EL('cli').innerHTML = "";
   EL('cli_input').value = "";
-  showCLI(!(EL('cli_cont').style.display == 'block'));
+  showCLI(!(EL('cli_cont').style.display === 'block'));
 }
 function showCLI(v) {
   EL('bottom_space').style.height = v ? '170px' : '50px';
@@ -617,30 +615,30 @@ function showCLI(v) {
   if (v) EL('cli_input').focus();
   EL('info_cli_sw').checked = v;
 }
-function checkCLI() {
-  if (event.key == 'Enter') sendCLI();
+async function checkCLI() {
+  if (event.key === 'Enter') await sendCLI();
 }
-function sendCLI() {
-  post('cli', 'cli', EL('cli_input').value);
+async function sendCLI() {
+  await post('cli', 'cli', EL('cli_input').value);
   EL('cli_input').value = "";
 }
 
 // ============== DISCOVER =============
-function sendDiscover() {
+async function sendDiscover() {
   /*NON-ESP*/
-  if (hub.cfg.use_mqtt) mq_discover();
-  if (hub.cfg.use_serial) serial_discover();
-  if (hub.cfg.use_bt) bt_discover();
+  if (hub.cfg.use_mqtt) await hub.mqtt.discover();
+  if (hub.cfg.use_serial) await hub.serial.discover(); // TODO
+  if (hub.cfg.use_bt) await hub.bt.discover();
   /*/NON-ESP*/
-  if (hub.cfg.use_ws && !isSSL()) ws_discover();
+  if (hub.cfg.use_ws && !isSSL()) await hub.ws.discover();
 }
-function discover() {
+async function discover() {
   if (isESP()) {
     let has = false;
     for (let id in devices) {
       if (window.location.href.includes(devices[id].ip)) has = true;
     }
-    if (!has && checkIP(window_ip())) ws_discover_ip(window_ip());
+    if (!has && checkIP(window_ip())) await hub.ws.discoverIp(window_ip());
   }
   for (let id in devices) {
     if (id in devices_t) devices_t[id].conn = Conn.NONE;
@@ -651,22 +649,22 @@ function discover() {
     EL(`WS#${id}`).style.display = 'none';
     EL(`MQTT#${id}`).style.display = 'none';
   }
-  sendDiscover();
+  await sendDiscover();
 }
-function discover_all() {
+async function discover_all() {
   /*NON-ESP*/
-  if (hub.cfg.use_mqtt) mq_discover_all();
-  if (hub.cfg.use_serial) serial_discover();
-  if (hub.cfg.use_bt) bt_discover();
+  if (hub.cfg.use_mqtt) await hub.mqtt.discoverAll();
+  if (hub.cfg.use_serial) await hub.serial.discover(); // TODO
+  if (hub.cfg.use_bt) await hub.bt.discover();
   /*/NON-ESP*/
-  if (hub.cfg.use_ws && !isSSL()) ws_discover_all();
-  back_h();
+  if (hub.cfg.use_ws && !isSSL()) await hub.ws.discoverAll();
+  await back_h();
 }
 
 // ============= CFG ==============
 function update_cfg(el) {
-  if (el.type == 'text') el.value = el.value.trim();
-  let val = (el.type == 'checkbox') ? el.checked : el.value;
+  if (el.type === 'text') el.value = el.value.trim();
+  let val = (el.type === 'checkbox') ? el.checked : el.value;
   if (el.id in cfg) cfg[el.id] = val;
   else if (el.id in hub.cfg) hub.cfg[el.id] = val;
   cfg_changed = true;
@@ -679,11 +677,11 @@ function save_cfg() {
 function load_cfg() {
   if (localStorage.hasOwnProperty('config')) {
     let cfg_r = JSON.parse(localStorage.getItem('config'));
-    if (cfg_r.version != cfg.version) {
+    if (cfg_r.version !== cfg.version) {
       cfg_r.version = cfg.version;
       show_version = true;
     }
-    if (Object.keys(cfg).length == Object.keys(cfg_r).length) {
+    if (Object.keys(cfg).length === Object.keys(cfg_r).length) {
       cfg = cfg_r;
       if (!show_version) return;
     }
@@ -693,7 +691,7 @@ function load_cfg() {
 function load_hcfg() {
   if (localStorage.hasOwnProperty('hub_config')) {
     let cfg_r = JSON.parse(localStorage.getItem('hub_config'));
-    if (Object.keys(hub.cfg).length == Object.keys(cfg_r).length) {
+    if (Object.keys(hub.cfg).length === Object.keys(cfg_r).length) {
       hub.cfg = cfg_r;
       return;
     }
@@ -702,16 +700,16 @@ function load_hcfg() {
 }
 function apply_cfg() {
   for (let key in cfg) {
-    if (key == 'version') continue;
+    if (key === 'version') continue;
     let el = EL(key);
-    if (el == undefined) continue;
-    if (el.type == 'checkbox') el.checked = cfg[key];
+    if (el === undefined) continue;
+    if (el.type === 'checkbox') el.checked = cfg[key];
     else el.value = cfg[key];
   }
   for (let key in hub.cfg) {
     let el = EL(key);
-    if (el == undefined) continue;
-    if (el.type == 'checkbox') el.checked = hub.cfg[key];
+    if (el === undefined) continue;
+    if (el.type === 'checkbox') el.checked = hub.cfg[key];
     else el.value = hub.cfg[key];
   }
 }
