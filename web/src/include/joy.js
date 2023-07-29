@@ -1,224 +1,190 @@
-let Joystick = (function (cont, dpad, color, auto, exp, callback) {
-    // based on https://github.com/bobboteck/JoyStick
-    /*cont = EL('joy#' + cont);
-    if (!cont) return;
-    cont.style.touchAction = "none";
-    let cv = document.createElement("canvas");
-    let size = cont.clientWidth;*/
+"use strict";
 
-    //
-    let cv = document.getElementById('#' + cont);
-    if (!cv || !cv.parentNode.clientWidth) return;
-    let size = cv.parentNode.clientWidth;
-    //
+function adjust(color, ratio) {
+  return '#' + color.replace(/^#/, '').replace(/../g, color => ('0' + Math.min(255, Math.max(0, Math.floor(parseInt(color, 16) * (ratio + 1)))).toString(16)).slice(-2));
+}
+
+function constrain(val, min, max) {
+  return val < min ? min : (val > max ? max : val);
+}
+
+class Joystick {
+  /**
+   * @param {string} cont
+   * @param {boolean} dpad
+   * @param {string} color
+   * @param {boolean} auto
+   * @param {boolean} exp
+   * @param {function({x: number, y: number}): Promise<void>} callback
+   */
+  constructor(cont, dpad, color, auto, exp, callback) {
+    this.dpad = dpad;
+    this.color = color;
+    this.auto = auto
+    this.exp = exp
+    this.callback = callback;
+
+    this.cv = document.getElementById('#' + cont);
+    if (!this.cv || !this.cv.parentNode.clientWidth) return;
+    this.size = this.cv.parentNode.clientWidth;
 
     let ratio = window.devicePixelRatio;
-    cv.style.width = size + 'px';
-    cv.style.height = size + 'px';
-    size *= ratio;
-    cv.width = size;
-    cv.height = size;
-    cv.style.cursor = 'pointer';
+    this.cv.style.width = this.size + 'px';
+    this.cv.style.height = this.size + 'px';
+    this.size *= ratio;
+    this.cv.width = this.size;
+    this.cv.height = this.size;
+    this.cv.style.cursor = 'pointer';
 
-    //cont.appendChild(cv);
-
-    let cx = cv.getContext("2d");
-    let r = size * 0.23;
-    let R = size * 0.4;
-    let centerX = size / 2;
-    let centerY = size / 2;
-    let movedX = centerX;
-    let movedY = centerY;
-    let pressed = 0;
-    let dpressed = 0;
+    this.cx = this.cv.getContext("2d");
+    this.r = this.size * 0.23;
+    this.R = this.size * 0.4;
+    this.centerX = this.size / 2;
+    this.centerY = this.size / 2;
+    this.movedX = this.centerX;
+    this.movedY = this.centerY;
+    this.pressed = 0;
+    this.dpressed = 0;
 
     if ("ontouchstart" in document.documentElement) {
-        cv.addEventListener("touchstart", onTouchStart, false);
-        if (!dpad) document.addEventListener("touchmove", onTouchMove, false);
-        document.addEventListener("touchend", onTouchEnd, false);
+      this.cv.addEventListener("touchstart", this.onTouchStart.bind(this), false);
+      if (!dpad) document.addEventListener("touchmove", this.onTouchMove.bind(this), false);
+      document.addEventListener("touchend", this.onTouchEnd.bind(this), false);
     } else {
-        cv.addEventListener("mousedown", onMouseDown, false);
-        if (!dpad) document.addEventListener("mousemove", onMouseMove, false);
-        document.addEventListener("mouseup", onMouseUp, false);
+      this.cv.addEventListener("mousedown", this.onMouseDown.bind(this), false);
+      if (!dpad) document.addEventListener("mousemove", this.onMouseMove.bind(this), false);
+      document.addEventListener("mouseup", this.onMouseUp.bind(this), false);
     }
+  }
 
-    function adjust(color, ratio) {
-        return '#' + color.replace(/^#/, '').replace(/../g, color => ('0' + Math.min(255, Math.max(0, Math.floor(parseInt(color, 16) * (ratio + 1)))).toString(16)).substr(-2));
+  async _onMove(x, y) {
+    if (this.pressed) {
+      this.movedX = x * ratio;
+      this.movedY = y * ratio;
+      if (this.cv.offsetParent.tagName.toUpperCase() === "BODY") {
+        this.movedX -= this.cv.offsetLeft * ratio;
+        this.movedY -= this.cv.offsetTop * ratio;
+      } else {
+        this.movedX -= this.cv.offsetParent.offsetLeft * ratio;
+        this.movedY -= this.cv.offsetParent.offsetTop * ratio;
+      }
+      await this.redraw();
     }
-    function constrain(val, min, max) {
-        return val < min ? min : (val > max ? max : val);
+  }
+
+
+  async onTouchStart(event) {
+    this.pressed = 1;
+    if (this.dpad) await this.onTouchMove(event);
+  }
+
+  async onTouchMove(event) {
+    if (event.targetTouches[0].target === this.cv) {
+      await this._onMove(event.targetTouches[0].pageX, event.targetTouches[0].pageY);
     }
+  }
 
-    function onTouchStart(event) {
-        pressed = 1;
-        if (dpad) onTouchMove(event);
+  async onTouchEnd(event) {
+    if (this.auto || this.dpad) {
+      this.movedX = this.centerX;
+      this.movedY = this.centerY;
+      await this.redraw();
     }
+    if (!event.targetTouches.length) this.pressed = 0;
+  }
 
-    function onTouchMove(event) {
-        if (pressed && event.targetTouches[0].target === cv) {
-            movedX = event.targetTouches[0].pageX * ratio;
-            movedY = event.targetTouches[0].pageY * ratio;
-            if (cv.offsetParent.tagName.toUpperCase() === "BODY") {
-                movedX -= cv.offsetLeft * ratio;
-                movedY -= cv.offsetTop * ratio;
-            } else {
-                movedX -= cv.offsetParent.offsetLeft * ratio;
-                movedY -= cv.offsetParent.offsetTop * ratio;
-            }
-            redraw();
-        }
+
+  async onMouseDown(event) {
+    this.pressed = 1;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'pointer';
+    if (this.dpad) await this.onMouseMove(event);
+  }
+
+  async onMouseMove(event) {
+    await this._onMove(event.pageX, event.pageY);
+  }
+
+  async onMouseUp() {
+    if (this.auto || this.dpad) {
+      this.movedX = this.centerX;
+      this.movedY = this.centerY;
+      await this.redraw();
     }
+    this.pressed = 0;
+    document.body.style.userSelect = 'unset';
+    document.body.style.cursor = 'default';
+  }
 
-    function onTouchEnd(event) {
-        if (auto || dpad) {
-            movedX = centerX;
-            movedY = centerY;
-            redraw();
-        }
-        if (!event.targetTouches.length) pressed = 0;
-    }
 
-    function onMouseDown(event) {
-        pressed = 1;
-        document.body.style.userSelect = 'none';
-        document.body.style.cursor = 'pointer';
-        if (dpad) onMouseMove(event);
-    }
+  async redraw() {
+    this.cx.clearRect(0, 0, this.size, this.size);
+    this.movedX = constrain(this.movedX, this.r, this.size - this.r);
+    this.movedY = constrain(this.movedY, this.r, this.size - this.r);
+    let x = Math.round((this.movedX - this.centerX) / (this.size / 2 - this.r) * 255);
+    let y = -Math.round((this.movedY - this.centerY) / (this.size / 2 - this.r) * 255);
 
-    function onMouseMove(event) {
-        if (pressed) {
-            movedX = event.pageX * ratio;
-            movedY = event.pageY * ratio;
-            if (cv.offsetParent.tagName.toUpperCase() === "BODY") {
-                movedX -= cv.offsetLeft * ratio;
-                movedY -= cv.offsetTop * ratio;
-            } else {
-                movedX -= cv.offsetParent.offsetLeft * ratio;
-                movedY -= cv.offsetParent.offsetTop * ratio;
-            }
-            redraw();
-        }
-    }
-
-    function onMouseUp(event) {
-        if (auto || dpad) {
-            movedX = centerX;
-            movedY = centerY;
-            redraw();
-        }
-        pressed = 0;
-        document.body.style.userSelect = 'unset';
-        document.body.style.cursor = 'default';
-    }
-
-    function redraw() {
-        cx.clearRect(0, 0, size, size);
-        movedX = constrain(movedX, r, size - r);
-        movedY = constrain(movedY, r, size - r);
-        let x = Math.round((movedX - centerX) / (size / 2 - r) * 255);
-        let y = -Math.round((movedY - centerY) / (size / 2 - r) * 255);
-
-        if (dpad) {
-            if (Math.abs(x) < 150 && Math.abs(y) < 150) {
-                x = 0, y = 0;
-            } else {
-                dpressed = 1;
-                if (Math.abs(x) > Math.abs(y)) x = Math.sign(x), y = 0;
-                else x = 0, y = Math.sign(y);
-            }
-
-            cx.beginPath();
-            cx.arc(centerX, centerY, R * 1.15, 0, 2 * Math.PI, false);
-            cx.lineWidth = R / 20;
-            cx.strokeStyle = color;
-            cx.stroke();
-
-            cx.lineWidth = R / 10;
-            let rr = R * 0.9;
-            let cw = R / 4;
-            let ch = rr - cw;
-            let sh = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-            for (let i = 0; i < 4; i++) {
-                cx.beginPath();
-                cx.strokeStyle = (x == sh[i][0] && y == -sh[i][1]) ? adjust(color, 0.5) : color;
-                cx.moveTo(centerX + ch * sh[i][0] - cw * sh[i][1], centerY + ch * sh[i][1] - cw * sh[i][0]);
-                cx.lineTo(centerX + rr * sh[i][0], centerY + rr * sh[i][1]);
-                cx.lineTo(centerX + ch * sh[i][0] + cw * sh[i][1], centerY + ch * sh[i][1] + cw * sh[i][0]);
-                cx.stroke();
-            }
-            /*
-            cx.beginPath();
-            cx.strokeStyle = (x == 1) ? adjust(color, 0.5) : color;
-            cx.moveTo(centerX + ch, centerY - cw);
-            cx.lineTo(centerX + rr, centerY);
-            cx.lineTo(centerX + ch, centerY + cw);
-            cx.stroke();
-
-            cx.beginPath();
-            cx.strokeStyle = (x == -1) ? adjust(color, 0.5) : color;
-            cx.moveTo(centerX - ch, centerY - cw);
-            cx.lineTo(centerX - rr, centerY);
-            cx.lineTo(centerX - ch, centerY + cw);
-            cx.stroke();
-
-            cx.beginPath();
-            cx.strokeStyle = (y == 1) ? adjust(color, 0.5) : color;
-            cx.moveTo(centerX - cw, centerY - ch);
-            cx.lineTo(centerX, centerY - rr);
-            cx.lineTo(centerX + cw, centerY - ch);
-            cx.stroke();
-
-            cx.beginPath();
-            cx.strokeStyle = (y == -1) ? adjust(color, 0.5) : color;
-            cx.moveTo(centerX - cw, centerY + ch);
-            cx.lineTo(centerX, centerY + rr);
-            cx.lineTo(centerX + cw, centerY + ch);
-            cx.stroke();
-            */
-            if (dpressed) callback({ x: x, y: y });
-            if (!x && !y) dpressed = 0;
-
+    if (this.dpad) {
+      if (Math.abs(x) < 150 && Math.abs(y) < 150) {
+        x = 0;
+        y = 0;
+      } else {
+        this.dpressed = 1;
+        if (Math.abs(x) > Math.abs(y)) {
+          x = Math.sign(x);
+          y = 0;
         } else {
-            cx.beginPath();
-            cx.arc(centerX, centerY, R, 0, 2 * Math.PI, false);
-            let grd = cx.createRadialGradient(centerX, centerY, R * 2 / 3, centerX, centerY, R);
-            grd.addColorStop(0, '#00000005');
-            grd.addColorStop(1, '#00000030');
-            cx.fillStyle = grd;
-            cx.fill();
-
-            /*cx.beginPath();
-            cx.arc(movedX, movedY, r, 0, 2 * Math.PI, false);
-            grd = cx.createLinearGradient(movedX, movedY - r, movedX, movedY + r);
-            grd.addColorStop(1, adjust(color, -0.4));
-            grd.addColorStop(0, color);
-            cx.fillStyle = grd;
-            cx.fill();
-        
-            cx.beginPath();
-            let r1 = r * 0.8;
-            cx.arc(movedX, movedY, r1, 0, 2 * Math.PI, false);
-            grd = cx.createLinearGradient(movedX, movedY - r1, movedX, movedY + r1);
-            grd.addColorStop(0, adjust(color, -0.4));
-            grd.addColorStop(1, color);
-            cx.fillStyle = grd;
-            cx.fill();*/
-
-            cx.beginPath();
-            cx.arc(movedX, movedY, r, 0, 2 * Math.PI, false);
-            grd = cx.createRadialGradient(movedX, movedY, 0, movedX, movedY, r);
-            grd.addColorStop(0, adjust(color, 0.4));
-            grd.addColorStop(1, color);
-            cx.fillStyle = grd;
-            cx.fill();
-
-            if (!pressed) return;
-            if (exp) {
-                x = ((x * x + 255) >> 8) * (x > 0 ? 1 : -1);
-                y = ((y * y + 255) >> 8) * (y > 0 ? 1 : -1);
-            }
-            callback({ x: x, y: y });
+          x = 0;
+          y = Math.sign(y);
         }
+      }
+
+      this.cx.beginPath();
+      this.cx.arc(this.centerX, this.centerY, this.R * 1.15, 0, 2 * Math.PI, false);
+      this.cx.lineWidth = this.R / 20;
+      this.cx.strokeStyle = this.color;
+      this.cx.stroke();
+
+      this.cx.lineWidth = this.R / 10;
+      let rr = this.R * 0.9;
+      let cw = this.R / 4;
+      let ch = rr - cw;
+      let sh = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      for (let i = 0; i < 4; i++) {
+        this.cx.beginPath();
+        this.cx.strokeStyle = (x === sh[i][0] && y === -sh[i][1]) ? adjust(this.color, 0.5) : this.color;
+        this.cx.moveTo(this.centerX + ch * sh[i][0] - cw * sh[i][1], this.centerY + ch * sh[i][1] - cw * sh[i][0]);
+        this.cx.lineTo(this.centerX + rr * sh[i][0], this.centerY + rr * sh[i][1]);
+        this.cx.lineTo(this.centerX + ch * sh[i][0] + cw * sh[i][1], this.centerY + ch * sh[i][1] + cw * sh[i][0]);
+        this.cx.stroke();
+      }
+
+      if (this.dpressed) await this.callback({x: x, y: y});
+      if (!x && !y) this.dpressed = 0;
+
+    } else {
+      this.cx.beginPath();
+      this.cx.arc(this.centerX, this.centerY, this.R, 0, 2 * Math.PI, false);
+      let grd = this.cx.createRadialGradient(this.centerX, this.centerY, this.R * 2 / 3, this.centerX, this.centerY, this.R);
+      grd.addColorStop(0, '#00000005');
+      grd.addColorStop(1, '#00000030');
+      this.cx.fillStyle = grd;
+      this.cx.fill();
+
+      this.cx.beginPath();
+      this.cx.arc(this.movedX, this.movedY, this.r, 0, 2 * Math.PI, false);
+      grd = this.cx.createRadialGradient(this.movedX, this.movedY, 0, this.movedX, this.movedY, this.r);
+      grd.addColorStop(0, adjust(this.color, 0.4));
+      grd.addColorStop(1, this.color);
+      this.cx.fillStyle = grd;
+      this.cx.fill();
+
+      if (!this.pressed) return;
+      if (this.exp) {
+        x = ((x * x + 255) >> 8) * (x > 0 ? 1 : -1);
+        y = ((y * y + 255) >> 8) * (y > 0 ? 1 : -1);
+      }
+      await this.callback({x: x, y: y});
     }
-    redraw();
-});
+  }
+}

@@ -58,19 +58,6 @@ function readModule(module) {
   return !(devices[focused].modules & module);
 }
 
-function addDevice(id) {
-  let icon = (!isESP() && devices[id].icon.length) ? `<span class="icon icon_min" id="icon#${id}">${devices[id].icon}</span>` : '';
-  EL('devices').innerHTML += `<div class="device offline" id="device#${id}" onclick="device_h('${id}')" title="${id} [${devices[id].prefix}]">
-  <div class="device_inner">
-    <div class="d_icon ${icon ? '' : 'd_icon_empty'}">${icon}</div>
-      <div class="d_head">
-        <span><span class="d_name" id="name#${id}">${devices[id].name}</span><sup class="conn_dev" id="Serial#${id}">S</sup><sup class="conn_dev" id="BT#${id}">B</sup><sup class="conn_dev" id="WS#${id}">W</sup><sup class="conn_dev" id="MQTT#${id}">M</sup></span>
-      </div>
-      <div class="icon d_delete" onclick="delete_h('${id}')"></div>
-    </div>
-  </div>`;
-}
-
 // ============ COMPONENTS =============
 // button
 function addButton(ctrl) {
@@ -884,16 +871,18 @@ function addJoy(ctrl) {
   joys[ctrl.name] = ctrl;
 }
 
-function showJoys() {
+async function showJoys() {
   for (let joy in joys) {
-    joys[joy].joy = new Joystick(joy,
-      joys[joy].type === 'dpad',
-      intToCol(joys[joy].color == null ? colors[cfg.maincolor] : joys[joy].color),
-      joys[joy].auto,
-      joys[joy].exp,
-      function (data) {
-        input_h(joy, ((data.x + 255) << 16) | (data.y + 255));
-      });
+    let j = new Joystick(joy,
+          joys[joy].type === 'dpad',
+          intToCol(joys[joy].color == null ? colors[cfg.maincolor] : joys[joy].color),
+          joys[joy].auto,
+          joys[joy].exp,
+          async data => {
+              await input_h(joy, ((data.x + 255) << 16) | (data.y + 255));
+          });
+    await j.redraw();
+    joys[joy].joy = j;
   }
 }
 

@@ -6,7 +6,6 @@ const oninput_prd = 100;
 const ws_tout = 4000;
 
 // =============== VARS ==============
-let discovering = false;
 let ws_focus_flag = false;
 let tout_interval = null;
 let ping_interval = null;
@@ -127,26 +126,6 @@ function reset_ping() {
   }, ping_prd);
 }
 
-function parsePacket(id, text, conn) {
-  function checkPacket() {
-    if (devices_t[id]['buffer'][ConnNames[conn]].endsWith('}\n')) {
-      if (devices_t[id]['buffer'][ConnNames[conn]].startsWith('\n{')) parseDevice(id, devices_t[id]['buffer'][ConnNames[conn]], conn);
-      devices_t[id]['buffer'][ConnNames[conn]] = '';
-    }
-  }
-
-  if (conn === Conn.BT || conn === Conn.SERIAL) {
-    for (let i = 0; i < text.length; i++) {
-      devices_t[id]['buffer'][ConnNames[conn]] += text[i];
-      checkPacket();
-    }
-  } else {
-    devices_t[id]['buffer'][ConnNames[conn]] += text;
-    checkPacket();
-  }
-}
-
-// =============== MQTT ================
 /*NON-ESP*/
 async function mq_start() {
   await hub.mqtt.start();
@@ -156,19 +135,10 @@ async function mq_stop() {
   await hub.mqtt.stop();
 }
 
-function mq_show_icon(state) {
-  EL('mqtt_ok').style.display = state ? 'inline-block' : 'none';
-}
-
-// ============= WEBSOCKET ==============
-
-let bt_buffer = '';
-
 async function manual_ws_h(ip) {
-  await hub.ws.manualIp(ip);
+  await WebsocketConnection.manualIp(ip);
 }
 
-// ================ SERIAL ================
 async function serial_select() {
   await hub.serial.select();
 }
@@ -181,14 +151,6 @@ async function serial_change() {
   await hub.serial.change();
 }
 
-function serial_show_icon(state) {
-  EL('serial_ok').style.display = state ? 'inline-block' : 'none';
-}
-
 async function bt_toggle() {
   await hub.bt.toggle();
-}
-
-function bt_show_ok(state) {
-  EL('bt_ok').style.display = state ? 'inline-block' : 'none';
 }

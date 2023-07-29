@@ -19,6 +19,8 @@ String.prototype.hashCode = function () {
 }
 
 class Connection {
+  priority = 0
+
   /**
    *
    * @param {String} cmd
@@ -26,32 +28,268 @@ class Connection {
    * @param {String} value
    * @returns {Promise<void>}
    */
-  async send(cmd, name, value) {}
+  async send(cmd, name, value) {
+  }
 
-  async discover() {}
+  static async discover() {
+  }
+
+  static async discoverAll() {
+    await this.discover();
+  }
 }
 
 class Device {
-  /** @type Connection */
-  connection = null
+  /** @type Connection[] */
+  connections = []
+  controls = null
+  granted = false
+  port = null
+  ip = null
+  info = {}
 
-  constructor(id) {
+  constructor(id, info) {
     this.id = id;
+    this.updateInfo(info)
+
+    let icon = (!isESP() && this.info.icon) ? `<span class="icon icon_min" id="icon#${id}">${this.info.icon}</span>` : '';
+    EL('devices').innerHTML += `
+<div class="device offline" id="device#${id}" onclick="device_h('${id}')" title="${id} [${hub.cfg.prefix}]">
+  <div class="device_inner">
+    <div class="d_icon ${icon ? '' : 'd_icon_empty'}">${icon}</div>
+    <div class="d_head">
+      <span>
+        <span class="d_name" id="name#${id}">${this.info.name}</span>
+        <sup class="conn_dev" id="Serial#${id}">S</sup>
+        <sup class="conn_dev" id="BT#${id}">B</sup>
+        <sup class="conn_dev" id="WS#${id}">W</sup>
+        <sup class="conn_dev" id="MQTT#${id}">M</sup>
+      </span>
+    </div>
+    <div class="icon d_delete" onclick="delete_h('${id}')"></div>
+  </div>
+</div>`;
+    EL(`device#${id}`).className = "device";
   }
 
-  addConnectionType(t){
-    switch (devices_t[this.id].conn){
+  get connection() {
+    if (this.connections)
+      return this.connections[0];
+    throw new Error("No connection to device");
+  }
+
+  addConnectionType(conn) {
+    let connection;
+    switch (conn) {
       case Conn.MQTT:
-        this.connection = hub.mqtt;
+        connection = hub.mqtt;
         break;
       case Conn.WS:
-        this.connection = hub.ws;
+        connection = new WebsocketConnection(this.ip);
         break;
       case Conn.BT:
-        this.connection = hub.bt;
+        connection = hub.bt;
         break;
       case Conn.SERIAL:
-        this.connection = hub.serial;
+        connection = hub.serial;
+        break;
+    }
+    if (connection in this.connections) return;
+
+    this.connections.push(connection);
+    this.connections.sort((a, b) => a.priority - b.priority);
+    EL(`${ConnNames[conn]}#${this.id}`).style.display = 'unset';
+  }
+
+  updateInfo(data) {
+    this.info.name = data.name;
+    this.info.icon = data.icon;
+    this.info.PIN = data.PIN;
+    this.info.version = data.version;
+    this.info.max_upl = data.max_upl;
+    this.info.modules = data.modules;
+    this.info.ota_t = data.ota_t;
+    save_devices();
+  }
+
+  async handlePacket(data, connection, ip) {
+    switch (data.type) {
+      case 'discover':
+        if (focused) return;
+
+        // COMPATIBILITY
+        if (data.modules === undefined) data.modules = 0;
+        if (data.ota_t === undefined) data.ota_t = 'bin';
+
+
+        if (this.ip === null && ip !== null) {
+          this.ip = ip;
+        }
+
+        log('Update device #' + this.id);
+        this.updateInfo(data);
+        this.addConnectionType(connection);
+
+        if (data.icon.length) EL(`icon#${this.id}`).innerHTML = data.icon;
+        EL(`name#${this.id}`).innerHTML = data.name ? data.name : 'Unknown';
+        EL(`device#${this.id}`).className = "device";
+        break;
+
+      case 'data':
+        // RAW DATA
+        break;
+
+      case 'alert':
+        await release_all();
+        alert(data.text);
+        break;
+
+      case 'notice':
+        showPopup(data.text, intToCol(data.color));
+        break;
+
+      case 'OK':
+        break;
+
+      case 'ERR':
+        showPopupError(data.text);
+        break;
+
+      case 'print':
+        if (this.id !== focused) return;
+        printCLI(data.text, data.color);
+        break;
+
+      case 'update':
+        if (this.id !== focused) return;
+        for (let name in data.updates) await applyUpdate(name, data.updates[name]);
+        break;
+
+      case 'ui':
+        if (this.id !== focused) return;
+        this.controls = data.controls;
+        await showControls(data.controls, false, connection, devices[focused].ip);
+        break;
+
+      case 'info':
+        if (this.id !== focused) return;
+        showInfo(data);
+        break;
+
+      case 'push':
+        if (!(this.id in devices)) return;
+        let date = (new Date).getTime();
+        if (date - push_timer < 3000) return;
+        push_timer = date;
+        showNotif(data.text, this.info.name);
+        break;
+
+      // ============== FS ==============
+      case 'fsbr':
+        if (this.id !== focused) return;
+        showFsbr(data);
+        break;
+
+      case 'fs_error':
+        if (this.id !== focused) return;
+        EL('fsbr_inner').innerHTML = '<div class="fs_err">FS ERROR</div>';
+        break;
+
+      // ============= FETCH =============
+      case 'fetch_start':
+        if (this.id !== focused) return;
+
+        fetching = focused;
+        fetch_file = '';
+        await post('fetch_chunk', fetch_path);
+        reset_fetch_tout();
+        break;
+
+      case 'fetch_next_chunk':
+        if (this.id !== fetching) return;
+
+        fetch_file += data.data;
+        if (data.chunk === data.amount - 1) {
+          if (fetch_to_file) downloadFileEnd(fetch_file);
+          else fetchEnd(fetch_name, fetch_index, fetch_file);
+        } else {
+          let perc = Math.round(data.chunk / data.amount * 100);
+          if (fetch_to_file) processFile(perc);
+          else EL('process#' + fetch_index).innerHTML = perc + '%';
+          await post('fetch_chunk', fetch_path);
+          reset_fetch_tout();
+        }
+        break;
+
+      case 'fetch_err':
+        if (this.id !== focused) return;
+
+        if (fetch_to_file) errorFile();
+        else EL('process#' + fetch_index).innerHTML = 'Aborted';
+        showPopupError('Fetch aborted');
+        stopFS();
+        break;
+
+      // ============= UPLOAD =============
+      case 'upload_err':
+        showPopupError('Upload aborted');
+        setLabelTout('file_upload_btn', 'Error!', 'Upload');
+        stopFS();
+        break;
+
+      case 'upload_start':
+        if (this.id !== focused) return;
+        uploading = focused;
+        uploadNextChunk();
+        reset_upload_tout();
+        break;
+
+      case 'upload_next_chunk':
+        if (this.id !== uploading) return;
+        uploadNextChunk();
+        reset_upload_tout();
+        break;
+
+      case 'upload_end':
+        showPopup('Upload Done!');
+        stopFS();
+        setLabelTout('file_upload_btn', 'Done!', 'Upload');
+        await post('fsbr');
+        break;
+
+      // ============= OTA =============
+      case 'ota_err':
+        showPopupError('Ota aborted');
+        setLabelTout('ota_label', 'ERROR', 'IDLE');
+        stopFS();
+        break;
+
+      case 'ota_start':
+        if (this.id !== focused) return;
+        uploading = focused;
+        otaNextChunk();
+        reset_ota_tout();
+        break;
+
+      case 'ota_next_chunk':
+        if (this.id !== uploading) return;
+        otaNextChunk();
+        reset_ota_tout();
+        break;
+
+      case 'ota_end':
+        showPopup('OTA Done! Reboot');
+        stopFS();
+        setLabelTout('ota_label', 'DONE', 'IDLE');
+        break;
+
+      // ============ OTA URL ============
+      case 'ota_url_ok':
+        showPopup('OTA Done!');
+        break;
+
+      case 'ota_url_err':
+        showPopupError('OTA Error!');
         break;
     }
   }
@@ -76,15 +314,21 @@ class GyverHub {
 }
 
 class MqttConnection extends Connection {
+  priority = -1
+
   constructor() {
     super();
     this._client = null;
     this._discover_flag = false;
     this._pref_list = [];
+    this._buffers = {};
   }
 
   get connected() {
     return this._client && this._client.connected;
+  }
+  showIcon(state) {
+    EL('mqtt_ok').style.display = state ? 'inline-block' : 'none';
   }
 
   async start() {
@@ -107,23 +351,23 @@ class MqttConnection extends Connection {
     try {
       this._client = await mqtt.connectAsync(url, options);
     } catch (e) {
-      mq_show_icon(0);
+      this.showIcon(0);
       return;
     }
 
     this._client.on('connect', async () => {
-      mq_show_icon(1);
+      this.showIcon(1);
       this._client.subscribe(hub.cfg.prefix + '/hub');
 
       this._pref_list = [hub.cfg.prefix];
       this._client.subscribe(hub.cfg.prefix + '/hub/' + hub.cfg.client_id + '/#');
 
       for (let id in devices) {
-        if (!this._pref_list.includes(devices[id].prefix)) {
-          await this._client.subscribeAsync(devices[id].prefix + '/hub/' + hub.cfg.client_id + '/#');
-          this._pref_list.push(devices[id].prefix);
+        if (!this._pref_list.includes(hub.cfg.prefix)) {
+          await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + hub.cfg.client_id + '/#');
+          this._pref_list.push(hub.cfg.prefix);
         }
-        await this._client.subscribeAsync(devices[id].prefix + '/hub/' + id + '/get/#');
+        await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + id + '/get/#');
       }
 
       if (this._discover_flag) {
@@ -133,12 +377,12 @@ class MqttConnection extends Connection {
     });
 
     this._client.on('error', function () {
-      mq_show_icon(0);
+      this.showIcon(0);
       this._client.end();
     });
 
     this._client.on('close', function () {
-      mq_show_icon(0);
+      this.showIcon(0);
       this._client.end();
     });
 
@@ -148,17 +392,24 @@ class MqttConnection extends Connection {
       for (let pref of this._pref_list) {
         // prefix/hub
         if (topic === (pref + '/hub')) {
-          await parseDevice('broadcast', text, Conn.MQTT);
+          await parseDevice(text, Conn.MQTT);
 
           // prefix/hub/hubid/id
         } else if (topic.startsWith(pref + '/hub/' + hub.cfg.client_id + '/')) {
           let id = topic.split('/').slice(-1)[0];
           if (!(id in devices) || !(id in devices_t)) {
-            await parseDevice(id, text, Conn.MQTT);
+            await parseDevice(text, Conn.MQTT);
             return;
           }
 
-          parsePacket(id, text, Conn.MQTT);
+          if (!this._buffers[id]) this._buffers[id] = '';
+          this._buffers[id] += text;
+          if (this._buffers[id].endsWith('}\n')) {
+            if (this._buffers[id].startsWith('\n{')) {
+              await parseDevice(this._buffers[id], Conn.MQTT);
+            }
+            this._buffers[id] = '';
+          }
 
           // prefix/hub/id/get/name
         } else if (topic.startsWith(pref + '/hub/') && topic.includes('/get/')) {
@@ -175,23 +426,31 @@ class MqttConnection extends Connection {
   }
 
   async send(cmd, name, value) {
-    let uri0 = devices[focused].prefix + '/' + focused + '/' + hub.cfg.client_id + '/' + cmd;
+    let uri0 = hub.cfg.prefix + '/' + focused + '/' + hub.cfg.client_id + '/' + cmd;
     if (this.connected) await this._client.publishAsync(uri0 + (name.length ? ('/' + name) : ''), value);  // no '\0'
-  }
-
-  async discover() {
-    if (!this.connected) this._discover_flag = true;
-    else for (let id in devices) {
-      await this._client.publishAsync(devices[id].prefix + '/' + id, hub.cfg.client_id);
-    }
-    log('MQTT discover');
   }
 
   async stop() {
     if (this.connected) await this._client.endAsync();
   }
 
-  async discoverAll() {
+  static async discover() {
+    await hub.mqtt.discoverConn();
+  }
+
+  async discoverConn() {
+    if (!this.connected) this._discover_flag = true;
+    else for (let id in devices) {
+      await this._client.publishAsync(hub.cfg.prefix + '/' + id, hub.cfg.client_id);
+    }
+    log('MQTT discover');
+  }
+
+  static async discoverAll() {
+    await hub.mqtt.discoverAllConn();
+  }
+
+  async discoverAllConn() {
     if (!this.connected) return;
     if (!(hub.cfg.prefix in this._pref_list)) {
       await this._client.subscribeAsync(hub.cfg.prefix + '/hub');
@@ -204,74 +463,122 @@ class MqttConnection extends Connection {
 
   async initNewDevice(id) {
     if (this.connected) {
-      await this._client.subscribeAsync(devices[id].prefix + '/hub/' + id + '/get/#');
-      await this._client.subscribeAsync(devices[id].prefix + '/hub/' + hub.cfg.client_id + '/#');
-      if (!this._pref_list.includes(devices[id].prefix)) this._pref_list.push(devices[id].prefix);
+      await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + id + '/get/#');
+      await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + hub.cfg.client_id + '/#');
+      if (!this._pref_list.includes(hub.cfg.prefix)) this._pref_list.push(hub.cfg.prefix);
     }
   }
 }
 
 class WebsocketConnection extends Connection {
-  async start(id) {
-    if (!hub.cfg.use_ws) return;
-    await this.checkHttp(id);
-    if (devices_t[id].ws) return;
-    if (devices[id].ip === 'unset') return;
-    log(`WS ${id} open...`);
+  static _discovering = false;
 
-    devices_t[id].ws = new WebSocket(`ws://${devices[id].ip}:${ws_port}/`, ['hub']);
-
-    devices_t[id].ws.onopen = function () {
-      log(`WS ${id} opened`);
-      if (ws_focus_flag) {
-        ws_focus_flag = false;
-        post('focus');
-      }
-      if (id !== focused) devices_t[id].ws.close();
-    };
-
-    devices_t[id].ws.onclose = () => {
-      log(`WS ${id} closed`);
-      devices_t[id].ws = null;
-      ws_focus_flag = false;
-      if (id === focused) setTimeout(() => this.start(id), 500);
-    };
-
-    devices_t[id].ws.onerror = function () {
-      log(`WS ${id} error`);
-    };
-
-    devices_t[id].ws.onmessage = function (event) {
-      reset_tout();
-      parsePacket(id, event.data, Conn.WS);
-    };
+  static get isDiscovering() {
+    return this._discovering;
   }
 
-  async checkHttp(id) {
-    if (devices_t[id].http_cfg.upd) return;
-
-    try {
-      const res = await fetch('http://' + devices[id].ip + ':' + http_port + '/hub_http_cfg');
-      const config = await res.json();
-      for (let i in config) {
-        if (config[i])
-          devices_t[id].http_cfg[i] = config[i];
-      }
-    } catch (e) {
-      // ignore
-    }
-    // TODO xhr.timeout = tout_prd;
-  }
-
-  async discover() {
+  static async discover() {
     for (let id in devices) {
       if (devices[id].ip === 'unset') continue;
-      await this.discoverIp(devices[id].ip, id);
+      const ws = new this(devices[id].ip);
       log('WS discover');
+      await ws.discover(id);
     }
   }
 
-  discoverIp(ip, id = 'broadcast') {
+  static async manualIp(ip) {
+    if (!checkIP(ip)) {
+      showPopupError('Wrong IP!');
+      return;
+    }
+    log('WS manual ' + ip);
+    const ws = new this(ip);
+    await ws.discover();
+    await back_h();
+  }
+
+  static async _discoverAll(ip) {
+    try {
+      if (hub.cfg.use_hook) {
+        const res = await fetch('http://' + ip + ':' + http_port + '/hub_discover_all', {
+          signal: AbortSignal.timeout(tout_prd)
+        });
+        if (res.status !== 200) return;
+
+        const text = await res.text();
+        if (text !== 'OK') return;
+      }
+
+      const ws = new this(ip);
+      await ws.discover();
+    } catch (e) {
+    }
+  }
+
+  static _getIPs() {
+    let ip = EL('local_ip').value;
+    if (!checkIP(ip)) {
+      showPopupError('Wrong IP!');
+      return null;
+    }
+    let ip_a = ip.split('.');
+    let sum_ip = (ip_a[0] << 24) | (ip_a[1] << 16) | (ip_a[2] << 8) | ip_a[3];
+    let cidr = Number(hub.cfg.netmask);
+    let mask = ~(0xffffffff >>> cidr);
+    let network, broadcast = 0, start_ip, end_ip;
+    if (cidr === 32) {
+      network = sum_ip;
+      start_ip = network;
+      end_ip = network;
+    } else {
+      network = sum_ip & mask;
+      broadcast = network + (~mask);
+      if (cidr === 31) {
+        start_ip = network;
+        end_ip = broadcast;
+      } else {
+        start_ip = network + 1;
+        end_ip = broadcast - 1;
+      }
+    }
+    let ips = ['192.168.4.1'];
+    for (let ip = start_ip; ip <= end_ip; ip++) {
+      ips.push(`${(ip >>> 24) & 0xff}.${(ip >>> 16) & 0xff}.${(ip >>> 8) & 0xff}.${ip & 0xff}`);
+    }
+    return ips;
+  }
+
+  static async discoverAll() {
+    let ip_arr = this._getIPs();
+    if (ip_arr === null) return;
+
+    refreshSpin(true);
+    log('WS discover all, hook = ' + hub.cfg.use_hook);
+    const parallelMax = hub.cfg.use_hook ? 256 : 5;
+
+    this._discovering = true;
+    try {
+      while (ip_arr.length) {
+        await Promise.all(ip_arr.splice(0, parallelMax).map(async ip => this._discoverAll(ip)))
+      }
+
+    } finally {
+      this._discovering = false;
+      refreshSpin(false);
+    }
+  }
+
+  constructor(ip) {
+    super();
+    this.ip = ip;
+    this.ws = null;
+    this._buffer = '';
+    this.http_cfg = {
+      upd: false,
+    }
+  }
+
+  discover(id = null) {
     /*
     Как это работает:
     1. Мы инициируем открытие сокета
@@ -283,11 +590,11 @@ class WebsocketConnection extends Connection {
      */
 
     return new Promise(resolve => {
-      let ws = new WebSocket(`ws://${ip}:${ws_port}/`, ['hub']);
-      ws.onopen = () => ws.send(hub.cfg.prefix + (id !== 'broadcast' ? ('/' + id) : '') + '\0');
-      ws.onmessage = async function (event) {
+      let ws = new WebSocket(`ws://${this.ip}:${ws_port}/`, ['hub']);
+      ws.onopen = () => ws.send(hub.cfg.prefix + (id ? '/' + id : '') + '\0');
+      ws.onmessage = async (event) => {
         clearTimeout(tout);
-        await parseDevice(id, event.data, Conn.WS, ip);
+        await parseDevice(event.data, Conn.WS, this.ip);
         ws.close();
       };
       ws.onerror = () => ws.close();
@@ -302,94 +609,111 @@ class WebsocketConnection extends Connection {
     });
   }
 
-  async discoverIps(ips) {
-    discovering = true;
-    refreshSpin(true);
-
-    try {
-      while (ips) {
-        await Promise.all(ips.splice(0, 5).map(ip => this.discoverIp(ip)))
-      }
-
-    } finally {
-      refreshSpin(false);
-      discovering = false;
-    }
-
-    log('WS discover all');
+  get focused() {
+    return; // TODO
   }
 
-  async _discoverHook(ip) {
+  _getSocket(url) {
+    return new Promise((resolve, reject) => {
+      let ws = new WebSocket(url, ['hub']);
+      ws.addEventListener('open', () => resolve(ws));
+      ws.addEventListener('close', () => reject());
+    });
+  }
+
+  async start() {
+    if (!hub.cfg.use_ws) return;
+    if (this.ws !== null) return;
+    if (this.ip === null) return;
+    this.ws = false; // do not allow to run in parallel
+
+    await this.checkHttp();
+    log(`WS ${this.ip} open...`);
+
     try {
-      const res = await fetch('http://' + ip + ':' + http_port + '/hub_discover_all', {
-        signal: AbortSignal.timeout(tout_prd)
-      });
-      if (res.status !== 200) return;
-
-      const text = await res.text();
-      if (text !== 'OK') return;
-
-      await this.discoverIp(ip);
+      this.ws = await this._getSocket(`ws://${this.ip}:${ws_port}/`);
     } catch (e) {
-    }
-  }
-
-  async httpHook(ips) {
-    discovering = true;
-    refreshSpin(true);
-
-    try {
-      await Promise.all(ips.map(ip => this._discoverHook(ip)));
-
-    } finally {
-      refreshSpin(false);
-      discovering = false;
+      this.ws = null;
     }
 
-    log('WS hook discover all');
-  }
-
-  async discoverAll() {
-    let ip_arr = getIPs();
-    if (ip_arr == null) return;
-    if (hub.cfg.use_hook) await this.httpHook(ip_arr);
-    else await this.discoverIps(ip_arr);
-  }
-
-  async manualIp(ip) {
-    if (!checkIP(ip)) {
-      showPopupError('Wrong IP!');
+    if (!this.ws) {
+      log(`WS ${this.ip} failed to open`);
       return;
     }
-    log('WS manual ' + ip);
-    await this.discoverIp(ip);
-    await back_h();
+
+    log(`WS ${this.ip} opened`);
+
+    this.ws.addEventListener('error', () => {
+      log(`WS ${this.ip} error`);
+    });
+
+    this.ws.addEventListener('close', async () => {
+      log(`WS ${this.ip} closed`);
+      if (this.focused) {
+        await sleep(500);
+        await this.start();
+      }
+    });
+
+    this.ws.addEventListener('message', async event => {
+      reset_tout();
+      this._buffer += event.data;
+      if (this._buffer.endsWith('}\n')) {
+        if (this._buffer.startsWith('\n{')) {
+          await parseDevice(this._buffer, Conn.WS);
+        }
+        this._buffer = '';
+      }
+    });
+
+    if (!this.focused) this.ws.close();
+  }
+
+  async checkHttp() {
+    if (this.http_cfg.upd) return;
+
+    try {
+      const res = await fetch('http://' + this.ip + ':' + http_port + '/hub_http_cfg', {
+        signal: AbortSignal.timeout(tout_prd)
+      });
+      const config = await res.json();
+
+      for (let i in config) {
+        if (config[i])
+          this.http_cfg[i] = config[i];
+      }
+      this.http_cfg.upd = true;
+
+    } catch (e) {
+      // ignore
+    }
   }
 
   async send(cmd, name, value) {
-    let uri = devices[focused].prefix + '/' + focused + '/' + hub.cfg.client_id + '/' + cmd;
+    let uri = hub.cfg.prefix + '/' + focused + '/' + hub.cfg.client_id + '/' + cmd;
     if (name) uri += '/' + name;
     if (value) uri += '=' + value;
-    if (this.connected(focused)) devices_t[focused].ws.send(uri.toString() + '\0');   // no '\0'
+    if (this.connected) this.ws.send(uri.toString() + '\0');   // no '\0'
   }
 
-  connected(id) {
-    return (devices_t[id].ws && devices_t[id].ws.readyState === 1);
+  get connected() {
+    return this.ws && this.readyState === 1;
   }
 
-  async stop(id) {
-    if (!devices_t[id].ws || devices_t[id].ws.readyState >= 2) return;
-    log(`WS ${id} close...`);
-    devices_t[id].ws.close();
+  async stop() {
+    if (!this.ws || this.ws.readyState >= 2) return;
+    log(`WS ${this.ip} close...`);
+    this.ws.close();
   }
 }
 
 class SerialConnection extends Connection {
+  priority = 500
+
   constructor() {
     super();
     this._port = null;
     this._reader = null;
-    this._buffer = null;
     this._connected = false;
   }
 
@@ -404,17 +728,15 @@ class SerialConnection extends Connection {
     this._run(); // launch!
   }
 
+  showIcon(state) {
+    EL('serial_ok').style.display = state ? 'inline-block' : 'none';
+  }
+
   async _run() {
     this._connected = true;
     try {
       log('[Serial] Open');
-      serial_show_icon(true);
-      if (this._buffer) {
-        sleep(2000).then(async () => {
-          await this.send(this._buffer);
-          this._buffer = '';
-        }); // launch, send data after 2 seconds delay
-      }
+      this.showIcon(true);
 
       await this._readLoop();
 
@@ -428,7 +750,7 @@ class SerialConnection extends Connection {
       log('[Serial] Close port');
 
       this._connected = false;
-      serial_show_icon(false);
+      this.showIcon(false);
     }
   }
 
@@ -443,16 +765,15 @@ class SerialConnection extends Connection {
           if (done) break;
           const data = new TextDecoder().decode(value);
 
-          if (focused) {
-            parsePacket(focused, data, Conn.SERIAL);
-          } else {
-            buffer += data;
-            if (buffer.endsWith("}\n")) {
-              await parseDevice('broadcast', buffer, Conn.SERIAL);
+          for (let i = 0; i < data.length; i++) {
+            buffer += data[i];
+            if (buffer.endsWith('}\n')) {
+              if (buffer.startsWith('\n{')) {
+                await parseDevice(buffer, Conn.SERIAL);
+              }
               buffer = '';
             }
           }
-
         }
 
       } catch (error) {
@@ -476,8 +797,8 @@ class SerialConnection extends Connection {
     else await this.start();
   }
 
-  async discover() {
-    await this.send(hub.cfg.prefix);
+  static async discover() {
+    await hub.serial.send(hub.cfg.prefix);
   }
 
   async select() {
@@ -492,22 +813,21 @@ class SerialConnection extends Connection {
   }
 
   async change() {
-    serial_show_icon(0);
+    this.showIcon(0);
     if (this._connected) await this.stop();
     const ports = await navigator.serial.getPorts();
     EL('serial_btn').style.display = ports.length ? 'inline-block' : 'none';
   }
 
   async send(cmd, name, value) {
-    let uri = devices[focused].prefix + '/' + focused + '/' + hub.cfg.client_id + '/' + cmd;
+    let uri = hub.cfg.prefix + '/' + focused + '/' + hub.cfg.client_id + '/' + cmd;
     if (name) uri += '/' + name;
     if (value) uri += '=' + value;
 
     if (!this._connected) {
       await this.start();
-      this._buffer = uri;
-      return;
     }
+
     try {
       const encoder = new TextEncoder();
       const writer = this._port.writable.getWriter();
@@ -520,6 +840,8 @@ class SerialConnection extends Connection {
 }
 
 class BluetoothConnection extends Connection {
+  priority = 200
+
   // based on https://github.com/loginov-rocks/Web-Bluetooth-Terminal
   constructor() {
     super();
@@ -530,46 +852,52 @@ class BluetoothConnection extends Connection {
     this._characteristicUuid = 0xFFE1;
     this._boundHandleDisconnection = this._handleDisconnection.bind(this);
     this._boundHandleCharacteristicValueChanged = this._handleCharacteristicValueChanged.bind(this);
+
+    this._buffer = '';
   }
 
   async toggle() {
     if (!this.state()) {
-      await this.open();
       EL('bt_device').innerHTML = 'Connecting...';
+      await this.open();
     } else await this.close();
   }
 
-  async discover() {
-    await this.send(hub.cfg.prefix);
+  static async discover() {
+    await hub.bt.send(hub.cfg.prefix);
   }
 
   async onmessage(data) {
-    if (focused) {
-      parsePacket(focused, data, Conn.BT);
-    } else {
-      bt_buffer += data;
-      if (bt_buffer.endsWith("}\n")) {
-        await parseDevice('broadcast', bt_buffer, Conn.BT);
-        bt_buffer = '';
+    for (let i = 0; i < data.length; i++) {
+      this._buffer += data[i];
+      if (this._buffer.endsWith('}\n')) {
+        if (this._buffer.startsWith('\n{')) {
+          await parseDevice(this._buffer, Conn.BT);
+        }
+        this._buffer = '';
       }
     }
+  }
+
+  showOk(state) {
+    EL('bt_ok').style.display = state ? 'inline-block' : 'none';
   }
 
   onopen() {
     EL('bt_btn').innerHTML = 'Disconnect';
     EL('bt_device').innerHTML = this.getName();
-    bt_show_ok(true);
+    this.showOk(true);
   }
 
   onclose() {
     EL('bt_btn').innerHTML = 'Connect';
     EL('bt_device').innerHTML = 'Not Connected';
-    bt_show_ok(false);
+    this.showOk(false);
   }
 
   onerror() {
     EL('bt_device').innerHTML = 'Not Connected';
-    bt_show_ok(false);
+    this.showOk(false);
   }
 
   state() {
@@ -596,7 +924,7 @@ class BluetoothConnection extends Connection {
   }
 
   async send(cmd, name, value) {
-    let uri = devices[focused].prefix + '/' + focused + '/' + hub.cfg.client_id + '/' + cmd;
+    let uri = hub.cfg.prefix + '/' + focused + '/' + hub.cfg.client_id + '/' + cmd;
     if (name) uri += '/' + name;
     if (value) uri += '=' + value;
 
@@ -624,11 +952,11 @@ class BluetoothConnection extends Connection {
     this.onerror('[BT] ' + e);
   }
 
-  _connectToDevice(device) {
-    return (device ? Promise.resolve(device) : this._requestBluetoothDevice()).then((device) => this._connectDeviceAndCacheCharacteristic(device)).then((characteristic) => this._startNotifications(characteristic)).catch((error) => {
-      this._onerror(error);
-      return Promise.reject(error);
-    });
+  async _connectToDevice(device) {
+    if (!device)
+      device = await this._requestBluetoothDevice();
+    let characteristic = await this._connectDeviceAndCacheCharacteristic(device);
+    await this._startNotifications(characteristic);
   }
 
   async _disconnectFromDevice(device) {

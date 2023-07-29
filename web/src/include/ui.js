@@ -7,12 +7,34 @@ let menu_f = false;
 let updates = [];
 
 let cfg = {
-  use_pin: false, pin: '', ui_width: 450, theme: 'DARK', maincolor: 'GREEN', font: 'monospace', version: app_version, check_upd: true,
+  use_pin: false,
+  pin: '',
+  ui_width: 450,
+  theme: 'DARK',
+  maincolor: 'GREEN',
+  font: 'monospace',
+  version: app_version,
+  check_upd: true,
 };
+let hub = new GyverHub();
+
 
 // ============= STARTUP ============
 window.onload = async function () {
-  render_main(app_version);
+
+  if (!("serial" in navigator)) document.querySelector('#serial_col').style.display = 'none';
+  if (!("bluetooth" in navigator)) document.querySelector('#bt_col').style.display = 'none';
+  if (isSSL()) {
+    document.querySelector('.btn-pwa-install-http').classList.add('info_btn_dis');
+  } else {
+    document.querySelector('.btn-pwa-install-https').classList.add('info_btn_dis');
+  }
+
+  for (let i of document.querySelectorAll('.browser'))
+    i.textContent = browser();
+
+  document.querySelector('.current-location').textContent = location.href;
+
   EL('title').innerHTML = app_title;
   EL('title').title = 'GyverHub v' + app_version + ' [' + hub.cfg.client_id + '] ' + (isPWA() ? 'PWA ' : '') + (isSSL() ? 'SSL ' : '') + (isLocal() ? 'Local ' : '') + (isESP() ? 'ESP ' : '') + (isApp() ? 'App ' : '');
 
@@ -28,6 +50,7 @@ window.onload = async function () {
   if (cfg.use_pin) show_keypad(true);
   else await startup();
 }
+
 async function startup() {
   render_selects();
   render_info();
@@ -60,11 +83,12 @@ async function startup() {
     }
   }, 5000);
 
-  setTimeout(() => {
-    if (show_version) alert('Версия ' + app_version + '!\n' + '__NOTES__');
-  }, 1000);
+  await sleep(1000);
+  if (show_version)
+    alert('Версия ' + app_version + '!\n' + '__NOTES__');
   /*/NON-ESP*/
 }
+
 async function register_SW() {
   /*NON-ESP*/
   if ('serviceWorker' in navigator && !isLocal() && !isApp()) {
@@ -73,11 +97,13 @@ async function register_SW() {
   }
   /*/NON-ESP*/
 }
+
 function set_drop() {
   function preventDrop(e) {
     e.preventDefault()
     e.stopPropagation()
   }
+
   ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
     document.body.addEventListener(e, preventDrop, false);
   });
@@ -98,6 +124,7 @@ function set_drop() {
     }, false);
   });
 }
+
 function key_change() {
   document.addEventListener('keydown', async function (e) {
     switch (e.keyCode) {
@@ -121,21 +148,24 @@ function key_change() {
     //log(e.keyCode);
   });
 }
+
 function handle_back() {
-  window.history.pushState({ page: 1 }, "", "");
+  window.history.pushState({page: 1}, "", "");
   window.onpopstate = async function () {
-    window.history.pushState({ page: 1 }, "", "");
+    window.history.pushState({page: 1}, "", "");
     await back_h();
   }
 }
+
 async function update_ip() {
   /*NON-ESP*/
-  if (!Boolean(window.webkitRTCPeerConnection || window.mozRTCPeerConnection)) return;
-  const ip = await getLocalIP();
-  if (ip.indexOf("local") < 0) {
-    EL('local_ip').value = ip;
-    hub.cfg.local_ip = ip;
-  }
+  try {
+    const ip = await getLocalIP();
+    if (ip.indexOf("local") < 0) {
+      EL('local_ip').value = ip;
+      hub.cfg.local_ip = ip;
+    }
+  } catch (e) {}
   /*/NON-ESP*/
   if (isESP()) {
     EL('local_ip').value = window_ip();
@@ -150,13 +180,8 @@ async function checkUpdates(id) {
   let ver = devices[id].version;
   if (!ver.includes('@')) return;
   let namever = ver.split('@');
-  const resp = await fetch(`https://raw.githubusercontent.com/${namever[0]}/master/project.json`, { cache: "no-store" });
-  let proj = await resp.text();
-  try {
-    proj = JSON.parse(proj);
-  } catch (e) {
-    return;
-  }
+  const resp = await fetch(`https://raw.githubusercontent.com/${namever[0]}/master/project.json`, {cache: "no-store"});
+  let proj = await resp.json();
   if (proj.version === namever[1]) return;
   if (id !== focused) return;
   updates.push(id);
@@ -165,6 +190,7 @@ async function checkUpdates(id) {
     else otaUrl(`https://raw.githubusercontent.com/${namever[0]}/master/bin/firmware.bin${devices[id].ota_t === 'bin' ? '' : ('.' + devices[id].ota_t)}`, 'flash');
   }
 }
+
 async function pwa_install(ssl) {
   if (ssl && !isSSL()) {
     if (confirm("Redirect to HTTPS?")) window.location.href = window.location.href.replace('http:', 'https:');
@@ -180,12 +206,13 @@ async function pwa_install(ssl) {
   }
   if (deferredPrompt !== null) {
     deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    const {outcome} = await deferredPrompt.userChoice;
     if (outcome === 'accepted') deferredPrompt = null;
   }
 }
+
 async function loadProjects() {
-  const resp = await fetch("https://raw.githubusercontent.com/GyverLibs/GyverHub-projects/main/projects.txt", { cache: "no-store" });
+  const resp = await fetch("https://raw.githubusercontent.com/GyverLibs/GyverHub-projects/main/projects.txt", {cache: "no-store"});
   let projects = await resp.text();
   projects = projects.split('\n');
   for (let proj of projects) {
@@ -195,8 +222,9 @@ async function loadProjects() {
     await loadProj(rep);
   }
 }
+
 async function loadProj(rep) {
-  const resp = await fetch(`https://raw.githubusercontent.com/${rep}/master/project.json`, { cache: "no-store" });
+  const resp = await fetch(`https://raw.githubusercontent.com/${rep}/master/project.json`, {cache: "no-store"});
   let proj = await resp.text();
   try {
     proj = JSON.parse(proj);
@@ -216,6 +244,7 @@ async function loadProj(rep) {
   </div>
   `;
 }
+
 /*/NON-ESP*/
 
 // =============== PIN ================
@@ -237,12 +266,14 @@ async function pass_type(v) {
     }
   }
 }
+
 function check_type(arg) {
   if (arg.value.length > 0) {
     let c = arg.value[arg.value.length - 1];
     if (c < '0' || c > '9') arg.value = arg.value.slice(0, -1);
   }
 }
+
 function show_keypad(v) {
   if (v) {
     EL('password').style.display = 'block';
@@ -255,8 +286,9 @@ function show_keypad(v) {
 // ============== RENDER ==============
 function render_devices() {
   EL('devices').innerHTML = '';
-  for (let id in devices) addDevice(id);
+  // TODO for (let id in devices) addDevice(id);
 }
+
 function render_info() {
   const info_labels_topics = {
     info_id: 'ID',
@@ -274,6 +306,7 @@ function render_info() {
     </div>`;
   }
 }
+
 function update_info() {
   let id = focused;
   EL('info_break_sw').checked = devices[id].break_widgets;
@@ -292,6 +325,7 @@ function update_info() {
   EL('info_memory').innerHTML = '';
   EL('info_system').innerHTML = '';
 }
+
 function render_selects() {
   /*NON-ESP*/
   for (let baud of baudrates) {
@@ -324,17 +358,20 @@ function render_selects() {
 function test_h() {
   show_screen('test');
 }
+
 async function projects_h() {
   EL('projects').innerHTML = '';
   show_screen('projects');
   await loadProjects();
 }
+
 async function refresh_h() {
   if (screen === 'device') await post('focus');
   else if (screen === 'info') await post('info');
   else if (screen === 'fsbr') await post('fsbr');
   else await discover();
 }
+
 async function back_h() {
   if (EL('fsbr_edit').style.display === 'block') {
     editor_cancel();
@@ -348,13 +385,13 @@ async function back_h() {
   }
   switch (screen) {
     case 'device':
-      release_all();
+      await release_all();
       await close_device();
       break;
     case 'info':
     case 'fsbr':
       menuDeact();
-      showControls(devices_t[focused].controls);
+      await showControls(devices_t[focused].controls);
       show_screen('device');
       break;
     case 'config':
@@ -367,6 +404,7 @@ async function back_h() {
       break;
   }
 }
+
 async function config_h() {
   if (screen === 'config') {
     if (cfg_changed) save_cfg();
@@ -377,6 +415,7 @@ async function config_h() {
     show_screen('config');
   }
 }
+
 function menu_show(state) {
   menu_f = state;
   let cl = EL('menu').classList;
@@ -385,9 +424,11 @@ function menu_show(state) {
   EL('icon_menu').innerHTML = menu_f ? '' : '';
   EL('menu_overlay').style.display = menu_f ? 'block' : 'none';
 }
+
 function menu_h() {
   menu_show(!menu_f);
 }
+
 async function info_h() {
   stopFS();
   menuDeact();
@@ -396,6 +437,7 @@ async function info_h() {
   show_screen('info');
   EL('menu_info').classList.add('menu_act');
 }
+
 async function fsbr_h() {
   menuDeact();
   menu_show(0);
@@ -412,8 +454,9 @@ async function fsbr_h() {
   show_screen('fsbr');
   EL('menu_fsbr').classList.add('menu_act');
 }
+
 async function device_h(id) {
-  if (discovering) return;
+  if (WebsocketConnection.isDiscovering) return;
   if (!(id in devices_t) || devices_t[id].conn === Conn.NONE) {
     //delete_h(id);
     return;
@@ -424,38 +467,28 @@ async function device_h(id) {
     show_screen('pin');
   } else await open_device(id);
 }
+
 async function open_device(id) {
   /*NON-ESP*/
   await checkUpdates(id);
   /*/NON-ESP*/
   focused = id;
+  refreshSpin(true);
 
-  switch (devices_t[id].conn) {
-    case Conn.SERIAL:
-      await post('focus');
-      break;
+  await hub.ws.start();
+  if (!hub.ws.opened)
+    return;
 
-    case Conn.BT:
-      await post('focus');
-      break;
+  await post('focus');
 
-    case Conn.WS:
-      refreshSpin(true);
-      await hub.ws.start(id);
-      ws_focus_flag = true;
-      break;
-
-    case Conn.MQTT:
-      await post('focus');
-      break;
-  }
   log('Open device #' + id + ' via ' + ConnNames[devices_t[id].conn]);
 
   EL('menu_user').innerHTML = '';
-  showControls(devices_t[id].controls, true);
+  await showControls(devices_t[id].controls, true);
   show_screen('device');
   reset_ping();
 }
+
 async function close_device() {
   showErr(false);
   switch (devices_t[focused].conn) {
@@ -484,6 +517,7 @@ async function close_device() {
   stop_ping();
   stop_tout();
 }
+
 function clear_all() {
   EL('devices').innerHTML = "";
   devices = {};
@@ -491,6 +525,7 @@ function clear_all() {
   save_devices();
   show_screen('main');
 }
+
 function show_screen(nscreen) {
   stopFS();
   screen = nscreen;
@@ -585,6 +620,7 @@ function show_screen(nscreen) {
     show_keypad(true);
   }
 }
+
 function delete_h(id) {
   if (confirm('Delete ' + id + '?')) {
     document.getElementById("device#" + id).remove();
@@ -604,20 +640,24 @@ function printCLI(text, color) {
     EL('cli').scrollTop = EL('cli').scrollHeight;
   }
 }
+
 function toggleCLI() {
   EL('cli').innerHTML = "";
   EL('cli_input').value = "";
   showCLI(!(EL('cli_cont').style.display === 'block'));
 }
+
 function showCLI(v) {
   EL('bottom_space').style.height = v ? '170px' : '50px';
   EL('cli_cont').style.display = v ? 'block' : 'none';
   if (v) EL('cli_input').focus();
   EL('info_cli_sw').checked = v;
 }
+
 async function checkCLI() {
   if (event.key === 'Enter') await sendCLI();
 }
+
 async function sendCLI() {
   await post('cli', 'cli', EL('cli_input').value);
   EL('cli_input').value = "";
@@ -626,19 +666,23 @@ async function sendCLI() {
 // ============== DISCOVER =============
 async function sendDiscover() {
   /*NON-ESP*/
-  if (hub.cfg.use_mqtt) await hub.mqtt.discover();
-  if (hub.cfg.use_serial) await hub.serial.discover(); // TODO
-  if (hub.cfg.use_bt) await hub.bt.discover();
+  if (hub.cfg.use_mqtt) await MqttConnection.discover();
+  if (hub.cfg.use_serial) await SerialConnection.discover();
+  if (hub.cfg.use_bt) await BluetoothConnection.discover();
   /*/NON-ESP*/
-  if (hub.cfg.use_ws && !isSSL()) await hub.ws.discover();
+  if (hub.cfg.use_ws && !isSSL()) await WebsocketConnection.discover();
 }
+
 async function discover() {
   if (isESP()) {
     let has = false;
     for (let id in devices) {
       if (window.location.href.includes(devices[id].ip)) has = true;
     }
-    if (!has && checkIP(window_ip())) await hub.ws.discoverIp(window_ip());
+    if (!has && checkIP(window_ip())) {
+      const ws = new WebsocketDeviceConnection(window_ip());
+      await ws.discover()
+    }
   }
   for (let id in devices) {
     if (id in devices_t) devices_t[id].conn = Conn.NONE;
@@ -651,13 +695,14 @@ async function discover() {
   }
   await sendDiscover();
 }
+
 async function discover_all() {
   /*NON-ESP*/
-  if (hub.cfg.use_mqtt) await hub.mqtt.discoverAll();
-  if (hub.cfg.use_serial) await hub.serial.discover(); // TODO
-  if (hub.cfg.use_bt) await hub.bt.discover();
+  if (hub.cfg.use_mqtt) await MqttConnection.discoverAll();
+  if (hub.cfg.use_serial) await SerialConnection.discoverAll();
+  if (hub.cfg.use_bt) await BluetoothConnection.discoverAll();
   /*/NON-ESP*/
-  if (hub.cfg.use_ws && !isSSL()) await hub.ws.discoverAll();
+  if (hub.cfg.use_ws && !isSSL()) await WebsocketConnection.discoverAll();
   await back_h();
 }
 
@@ -670,10 +715,12 @@ function update_cfg(el) {
   cfg_changed = true;
   update_theme();
 }
+
 function save_cfg() {
   localStorage.setItem('config', JSON.stringify(cfg));
   localStorage.setItem('hub_config', JSON.stringify(hub.cfg));
 }
+
 function load_cfg() {
   if (localStorage.hasOwnProperty('config')) {
     let cfg_r = JSON.parse(localStorage.getItem('config'));
@@ -688,6 +735,7 @@ function load_cfg() {
   }
   localStorage.setItem('config', JSON.stringify(cfg));
 }
+
 function load_hcfg() {
   if (localStorage.hasOwnProperty('hub_config')) {
     let cfg_r = JSON.parse(localStorage.getItem('hub_config'));
@@ -698,6 +746,7 @@ function load_hcfg() {
   }
   localStorage.setItem('hub_config', JSON.stringify(hub.cfg));
 }
+
 function apply_cfg() {
   for (let key in cfg) {
     if (key === 'version') continue;
@@ -713,6 +762,7 @@ function apply_cfg() {
     else el.value = hub.cfg[key];
   }
 }
+
 async function cfg_export() {
   try {
     const text = btoa(JSON.stringify(cfg)) + ';' + btoa(JSON.stringify(hub.cfg)) + ';' + btoa(encodeURIComponent(JSON.stringify(devices)));
@@ -722,19 +772,23 @@ async function cfg_export() {
     showPopupError('Export error');
   }
 }
+
 async function cfg_import() {
   try {
     let text = await navigator.clipboard.readText();
     text = text.split(';');
     try {
       cfg = JSON.parse(atob(text[0]));
-    } catch (e) { }
+    } catch (e) {
+    }
     try {
       hub.cfg = JSON.parse(atob(text[1]));
-    } catch (e) { }
+    } catch (e) {
+    }
     try {
       devices = JSON.parse(decodeURIComponent(atob(text[2])));
-    } catch (e) { }
+    } catch (e) {
+    }
 
     save_cfg();
     save_devices();
@@ -744,6 +798,7 @@ async function cfg_import() {
     showPopupError('Wrong data');
   }
 }
+
 function update_theme() {
   let v = themes[cfg.theme];
   let r = document.querySelector(':root');

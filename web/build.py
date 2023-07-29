@@ -5,14 +5,12 @@ notes = 'Fix MQTT OTA'
 
 js_files = [
     'src/include/GyverHub.js',
-    'src/include/main.js',
     'src/include/utils.js',
     'src/include/devices.js',
     'src/include/connection.js',
     'src/include/fs.js',
     'src/include/parser.js',
     'src/include/ui.js',
-    'src/include/test.js',
     'src/vendor/sort-paths.min.js',
     'src/vendor/mqtt_5.0.0.min.js',
     'src/vendor/pickr.min.js',
