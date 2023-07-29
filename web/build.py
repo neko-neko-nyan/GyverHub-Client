@@ -13,15 +13,15 @@ js_files = [
     'src/include/parser.js',
     'src/include/ui.js',
     'src/include/test.js',
-    'src/include/sort-paths.min.js',
-    'src/include/mqtt.min.js',
-    'src/include/pickr.min.js',
+    'src/vendor/sort-paths.min.js',
+    'src/vendor/mqtt_5.0.0.min.js',
+    'src/vendor/pickr.min.js',
     'src/include/joy.js',
 ]
 
 css_files = [
     'src/include/style.css',
-    'src/include/nano.min.css',
+    'src/vendor/nano.min.css',
 ]
 
 sw_cache = '''
@@ -98,8 +98,8 @@ metrika = '''
   </noscript>
 '''
 
-shutil.copyfile('src/include/fa-solid-900.woff2', 'host/fa-solid-900.woff2')
-shutil.copyfile('src/include/PTSans-Narrow.woff2', 'host/PTSans-Narrow.woff2')
+shutil.copyfile('src/vendor/fa-solid-900.woff2', 'host/fa-solid-900.woff2')
+shutil.copyfile('src/vendor/PTSans-Narrow.woff2', 'host/PTSans-Narrow.woff2')
 
 for file in copy_web:
     shutil.copyfile('src/' + file, 'host/' + file)
