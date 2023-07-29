@@ -62,8 +62,8 @@
 
             <div class="head_btns">
                 <span class="icon i_hover" id='icon_refresh' onclick="refresh_h()"></span>
-                <span class="icon i_hover" id='icon_cfg' style="display:none" onclick="config_h()"></span>
-                <span class="icon i_hover" id='icon_menu' style="display:none" onclick="menu_h()"></span>
+                <span class="icon i_hover" id='icon_cfg' onclick="show_screen('config')"></span>
+                <span class="icon i_hover" id='icon_menu' onclick="menu_h()"></span>
             </div>
         </div>
     </div>
@@ -119,13 +119,13 @@
                 <div class="cfg_row">
                     <label>Break Widgets</label>
                     <label class="switch"><input type="checkbox" id="info_break_sw"
-                                                 onchange="devices[focused].break_widgets=this.checked;save_devices()">
+                                                 onchange="hub.currentDevice.break_widgets=this.checked;save_devices()">
                         <span class="slider"></span></label>
                 </div>
                 <div class="cfg_row">
                     <label>Show names</label>
                     <label class="switch"><input type="checkbox" id="info_names_sw"
-                                                 onchange="devices[focused].show_names=this.checked;save_devices()">
+                                                 onchange="hub.currentDevice.show_names=this.checked;save_devices()">
                         <span class="slider"></span></label>
                 </div>
                 <div class="cfg_row">
@@ -566,7 +566,7 @@
         <div class="cli_area" id="cli"></div>
         <div class="cli_row">
             <span class="icon cli_icon"></span>
-            <input type="text" class="cfg_inp cli_inp" id="cli_input" onkeydown="checkCLI()">
+            <input type="text" class="cfg_inp cli_inp" id="cli_input" onkeydown="checkCLI">
             <button class="icon cfg_btn cli_icon cli_enter" onclick="sendCLI()"></button>
         </div>
     </div>
@@ -574,8 +574,8 @@
 <div class="footer" id="footer_cont">
     <div class="footer_inner">
         <!--<a href="https://alexgyver.ru/support_alex/" target="_blank"><span class="icon info_icon info_icon_u"></span>Support</a>-->
-        <a style="cursor:pointer" onclick="projects_h()"><span class="icon info_icon info_icon_u"></span>Projects</a>
-        <a style="cursor:pointer" onclick="test_h()"><span class="icon info_icon info_icon_u"></span>Test</a>
+        <a style="cursor:pointer" onclick="show_screen('projects');"><span class="icon info_icon info_icon_u"></span>Projects</a>
+        <a style="cursor:pointer" onclick="show_screen('test')"><span class="icon info_icon info_icon_u"></span>Test</a>
         <a href="https://github.com/GyverLibs/GyverHub/wiki" target="_blank"><span
                 class="icon info_icon info_icon_u"></span>Wiki</a>
     </div>

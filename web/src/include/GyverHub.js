@@ -1,23 +1,3 @@
-function getMaskList() {
-  let list = [];
-  for (let i = 0; i < 33; i++) {
-    let imask;
-    if (i === 32) imask = 0xffffffff;
-    else imask = ~(0xffffffff >>> i);
-    list.push(`${(imask >>> 24) & 0xff}.${(imask >>> 16) & 0xff}.${(imask >>> 8) & 0xff}.${imask & 0xff}`);
-  }
-  return list;
-}
-
-String.prototype.hashCode = function () {
-  if (!this.length) return 0;
-  let hash = new Uint32Array(1);
-  for (let i = 0; i < this.length; i++) {
-    hash[0] = ((hash[0] << 5) - hash[0]) + this.charCodeAt(i);
-  }
-  return hash[0];
-}
-
 class Connection {
   priority = 0
 
@@ -47,6 +27,8 @@ class Device {
   port = null
   ip = null
   info = {}
+  show_names = false
+  break_widgets = false
 
   constructor(id, info) {
     this.id = id;
@@ -85,6 +67,7 @@ class Device {
         connection = hub.mqtt;
         break;
       case Conn.WS:
+        for (let i of this.connections) if (i instanceof WebsocketConnection) return;
         connection = new WebsocketConnection(this.ip);
         break;
       case Conn.BT:
@@ -96,8 +79,11 @@ class Device {
     }
     if (connection in this.connections) return;
 
+    log(this.connections)
     this.connections.push(connection);
-    this.connections.sort((a, b) => a.priority - b.priority);
+    this.connections.sort((a, b) => b.priority - a.priority);
+
+    log(this.connections)
     EL(`${ConnNames[conn]}#${this.id}`).style.display = 'unset';
   }
 
@@ -110,6 +96,18 @@ class Device {
     this.info.modules = data.modules;
     this.info.ota_t = data.ota_t;
     save_devices();
+  }
+
+  isModuleEnabled(module) {
+    return !(this.info.modules & module);
+  }
+
+  get isFocused() {
+    return this.id === hub.currentDeviceId;
+  }
+
+  get isAccessAllowed() {
+    return this.granted || this.info.PIN === 0;
   }
 
   async handlePacket(data, connection, ip) {
@@ -156,62 +154,61 @@ class Device {
         break;
 
       case 'print':
-        if (this.id !== focused) return;
+        if (!this.isFocused) return;
         printCLI(data.text, data.color);
         break;
 
       case 'update':
-        if (this.id !== focused) return;
-        for (let name in data.updates) await applyUpdate(name, data.updates[name]);
+        if (!this.isFocused) return;
+        for (let name in data.updates) await this.applyUpdate(name, data.updates[name]);
         break;
 
       case 'ui':
-        if (this.id !== focused) return;
+        if (!this.isFocused) return;
         this.controls = data.controls;
-        await showControls(data.controls, false, connection, devices[focused].ip);
+        await showControls(data.controls, false, connection, this.ip);
         break;
 
       case 'info':
-        if (this.id !== focused) return;
-        showInfo(data);
+        if (!this.isFocused) return;
+        this.showInfo(data);
         break;
 
       case 'push':
-        if (!(this.id in devices)) return;
         let date = (new Date).getTime();
         if (date - push_timer < 3000) return;
         push_timer = date;
-        showNotif(data.text, this.info.name);
+        await showNotif(data.text, this.info.name);
         break;
 
       // ============== FS ==============
       case 'fsbr':
-        if (this.id !== focused) return;
+        if (!this.isFocused) return;
         showFsbr(data);
         break;
 
       case 'fs_error':
-        if (this.id !== focused) return;
+        if (!this.isFocused) return;
         EL('fsbr_inner').innerHTML = '<div class="fs_err">FS ERROR</div>';
         break;
 
       // ============= FETCH =============
       case 'fetch_start':
-        if (this.id !== focused) return;
+        if (!this.isFocused) return;
 
-        fetching = focused;
+        fetching = this.id;
         fetch_file = '';
         await post('fetch_chunk', fetch_path);
         reset_fetch_tout();
         break;
 
       case 'fetch_next_chunk':
-        if (this.id !== fetching) return;
+        if (!this.isFocused) return;
 
         fetch_file += data.data;
         if (data.chunk === data.amount - 1) {
-          if (fetch_to_file) downloadFileEnd(fetch_file);
-          else fetchEnd(fetch_name, fetch_index, fetch_file);
+          if (fetch_to_file) await downloadFileEnd(fetch_file);
+          else await fetchEnd(fetch_name, fetch_index, fetch_file);
         } else {
           let perc = Math.round(data.chunk / data.amount * 100);
           if (fetch_to_file) processFile(perc);
@@ -222,37 +219,37 @@ class Device {
         break;
 
       case 'fetch_err':
-        if (this.id !== focused) return;
+        if (!this.isFocused) return;
 
-        if (fetch_to_file) errorFile();
+        if (fetch_to_file) await errorFile();
         else EL('process#' + fetch_index).innerHTML = 'Aborted';
         showPopupError('Fetch aborted');
-        stopFS();
+        await stopFS();
         break;
 
       // ============= UPLOAD =============
       case 'upload_err':
         showPopupError('Upload aborted');
         setLabelTout('file_upload_btn', 'Error!', 'Upload');
-        stopFS();
+        await stopFS();
         break;
 
       case 'upload_start':
-        if (this.id !== focused) return;
-        uploading = focused;
-        uploadNextChunk();
+        if (!this.isFocused) return;
+        uploading = this.id;
+        await uploadNextChunk();
         reset_upload_tout();
         break;
 
       case 'upload_next_chunk':
-        if (this.id !== uploading) return;
-        uploadNextChunk();
+        if (!this.isFocused) return;
+        await uploadNextChunk();
         reset_upload_tout();
         break;
 
       case 'upload_end':
         showPopup('Upload Done!');
-        stopFS();
+        await stopFS();
         setLabelTout('file_upload_btn', 'Done!', 'Upload');
         await post('fsbr');
         break;
@@ -261,25 +258,25 @@ class Device {
       case 'ota_err':
         showPopupError('Ota aborted');
         setLabelTout('ota_label', 'ERROR', 'IDLE');
-        stopFS();
+        await stopFS();
         break;
 
       case 'ota_start':
-        if (this.id !== focused) return;
-        uploading = focused;
-        otaNextChunk();
+        if (!this.isFocused) return;
+        uploading = this.id;
+        await otaNextChunk();
         reset_ota_tout();
         break;
 
       case 'ota_next_chunk':
-        if (this.id !== uploading) return;
-        otaNextChunk();
+        if (!this.isFocused) return;
+        await otaNextChunk();
         reset_ota_tout();
         break;
 
       case 'ota_end':
         showPopup('OTA Done! Reboot');
-        stopFS();
+        await stopFS();
         setLabelTout('ota_label', 'DONE', 'IDLE');
         break;
 
@@ -291,6 +288,110 @@ class Device {
       case 'ota_url_err':
         showPopupError('OTA Error!');
         break;
+    }
+  }
+
+  async applyUpdate(name, value) {
+    if (screen !== 'device') return;
+    if (prev_set && prev_set.name === name && prev_set.value === value) {
+      prev_set = null;
+      return;
+    }
+    if (name in prompts) {
+      await release_all();
+      let res = prompt(value ? value : prompts[name].label, prompts[name].value);
+      if (res !== null) {
+        prompts[name].value = res;
+        await set_h(name, res);
+      }
+      return;
+    }
+    if (name in confirms) {
+      await release_all();
+      let res = confirm(value ? value : confirms[name].label);
+      await set_h(name, res ? '1' : '0');
+      return;
+    }
+    if (name in pickers) {
+      pickers[name].setColor(intToCol(value));
+      return;
+    }
+
+    let el = EL('#' + name);
+    if (!el) return;
+    const cl = el.classList;
+    if (cl.contains('icon_t')) el.style.color = value;
+    else if (cl.contains('text_t')) el.innerHTML = value;
+    else if (cl.contains('input_t')) el.value = value;
+    else if (cl.contains('date_t')) el.value = new Date(value * 1000).toISOString().split('T')[0];
+    else if (cl.contains('time_t')) el.value = new Date(value * 1000).toISOString().split('T')[1].split('.')[0];
+    else if (cl.contains('datetime_t')) el.value = new Date(value * 1000).toISOString().split('.')[0];
+    else if (cl.contains('slider_t')) el.value = value, EL('out#' + name).innerHTML = value, moveSlider(el, false);
+    else if (cl.contains('switch_t')) el.checked = (value === '1');
+    else if (cl.contains('select_t')) el.value = value;
+    else if (cl.contains('image_t')) {
+      files.push({id: '#' + name, path: (value ? value : EL('#' + name).getAttribute("name")), type: 'img'});
+      EL('wlabel#' + name).innerHTML = ' [0%]';
+      if (files.length === 1) await nextFile();
+    } else if (cl.contains('canvas_t')) {
+      if (name in canvases) {
+        if (!canvases[name].value) {
+          canvases[name].value = value;
+          drawCanvas(canvases[name]);
+        }
+      }
+    } else if (cl.contains('gauge_t')) {
+      if (name in gauges) {
+        gauges[name].value = Number(value);
+        drawGauge(gauges[name]);
+      }
+    } else if (cl.contains('flags_t')) {
+      let flags = document.getElementById('#' + name).getElementsByTagName('input');
+      let val = value;
+      for (let i = 0; i < flags.length; i++) {
+        flags[i].checked = val & 1;
+        val >>= 1;
+      }
+    }
+  }
+
+
+  showInfo(device) {
+    function addInfo(el, label, value, title = '') {
+      EL(el).innerHTML += `
+    <div class="cfg_row info">
+      <label>${label}</label>
+      <label title="${title}" class="lbl_info">${value}</label>
+    </div>`;
+    }
+
+    EL('info_version').innerHTML = '';
+    EL('info_net').innerHTML = '';
+    EL('info_memory').innerHTML = '';
+    EL('info_system').innerHTML = '';
+
+    for (let i in device.info.version) addInfo('info_version', i, device.info.version[i]);
+    for (let i in device.info.net) addInfo('info_net', i, device.info.net[i]);
+    for (let i in device.info.memory) {
+      if (typeof (device.info.memory[i]) == 'object') {
+        let used = device.info.memory[i][0];
+        let total = device.info.memory[i][1];
+        let mem = (used / 1000).toFixed(1) + ' kB';
+        if (total) mem += ' [' + (used / total * 100).toFixed(0) + '%]';
+        addInfo('info_memory', i, mem, `Total ${(total / 1000).toFixed(1)} kB`);
+      } else addInfo('info_memory', i, device.info.memory[i]);
+    }
+    for (let i in device.info.system) {
+      if (i === 'Uptime') {
+        let sec = device.info.system[i];
+        let upt = Math.floor(sec / 86400) + ':' + new Date(sec * 1000).toISOString().slice(11, 19);
+        let d = new Date();
+        let utc = d.getTime() - (d.getTimezoneOffset() * 60000);
+        addInfo('info_system', i, upt);
+        addInfo('info_system', 'Started', new Date(utc - sec * 1000).toISOString().split('.')[0].replace('T', ' '));
+        continue;
+      }
+      addInfo('info_system', i, device.info.system[i]);
     }
   }
 }
@@ -306,6 +407,14 @@ class GyverHub {
 
   /** @type {Map<String,Device>} */
   devices = new Map;
+  currentDeviceId = null;
+
+    /**
+     * @returns {Device | undefined}
+     */
+  get currentDevice() {
+    return this.devices.get(this.currentDeviceId);
+  }
 
   serial = new SerialConnection();
   mqtt = new MqttConnection();
@@ -320,13 +429,13 @@ class MqttConnection extends Connection {
     super();
     this._client = null;
     this._discover_flag = false;
-    this._pref_list = [];
     this._buffers = {};
   }
 
   get connected() {
     return this._client && this._client.connected;
   }
+
   showIcon(state) {
     EL('mqtt_ok').style.display = state ? 'inline-block' : 'none';
   }
@@ -357,70 +466,73 @@ class MqttConnection extends Connection {
 
     this._client.on('connect', async () => {
       this.showIcon(1);
-      this._client.subscribe(hub.cfg.prefix + '/hub');
+      await this._client.subscribeAsync(hub.cfg.prefix + '/hub');
+      await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + hub.cfg.client_id + '/#');
 
-      this._pref_list = [hub.cfg.prefix];
-      this._client.subscribe(hub.cfg.prefix + '/hub/' + hub.cfg.client_id + '/#');
-
-      for (let id in devices) {
-        if (!this._pref_list.includes(hub.cfg.prefix)) {
-          await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + hub.cfg.client_id + '/#');
-          this._pref_list.push(hub.cfg.prefix);
-        }
+      for (const id of hub.devices.keys()) {
         await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + id + '/get/#');
       }
 
       if (this._discover_flag) {
         this._discover_flag = false;
-        await this.discover();
+        await this.discoverConn();
       }
     });
 
-    this._client.on('error', function () {
+    this._client.on('error', () => {
       this.showIcon(0);
       this._client.end();
     });
 
-    this._client.on('close', function () {
+    this._client.on('close', () => {
       this.showIcon(0);
       this._client.end();
     });
 
-    this._client.on('message', async (topic, text) => {
-      topic = topic.toString();
-      text = text.toString();
-      for (let pref of this._pref_list) {
-        // prefix/hub
-        if (topic === (pref + '/hub')) {
-          await parseDevice(text, Conn.MQTT);
+    this._client.on('message', async (topic, data) => {
 
-          // prefix/hub/hubid/id
-        } else if (topic.startsWith(pref + '/hub/' + hub.cfg.client_id + '/')) {
-          let id = topic.split('/').slice(-1)[0];
-          if (!(id in devices) || !(id in devices_t)) {
-            await parseDevice(text, Conn.MQTT);
-            return;
-          }
+      /** @type string[] */
+      const parts = topic.split('/');
 
-          if (!this._buffers[id]) this._buffers[id] = '';
-          this._buffers[id] += text;
-          if (this._buffers[id].endsWith('}\n')) {
-            if (this._buffers[id].startsWith('\n{')) {
-              await parseDevice(this._buffers[id], Conn.MQTT);
-            }
-            this._buffers[id] = '';
-          }
+      if (parts.length < 2) return;
+      if (parts[0] !== hub.cfg.prefix) return;
+      if (parts[1] !== 'hub') return;
+      parts.splice(0, 2);
 
-          // prefix/hub/id/get/name
-        } else if (topic.startsWith(pref + '/hub/') && topic.includes('/get/')) {
-          let idname = topic.split(pref + '/hub/')[1].split('/get/');
-          if (idname[0] !== focused || idname.length !== 2) return;
-          log('Got GET from id=' + idname[0] + ', name=' + idname[1] + ', value=' + text);
-          await applyUpdate(idname[1], text);
-          stop_tout();
-        } else {
-          log('Got MQTT unknown');
+      // prefix/hub
+      if (parts.length === 0) {
+        await parseDevice(data.toString(), Conn.MQTT);
+
+        // prefix/hub/hubid/id
+      } else if (parts.length === 2 && parts[0] === hub.cfg.client_id) {
+        let id = parts[1];
+        const device = hub.devices.get(id);
+        if (!device) {
+          await parseDevice(data.toString(), Conn.MQTT);
+          return;
         }
+
+        if (!this._buffers[id]) this._buffers[id] = [];
+        const buf = this._buffers[id];
+        buf.push(data);
+
+        const last = buf[buf.length-1];
+        if (last[last.length - 2] === '}'.charAt(0) && last[last.length - 1] === '\n'.charAt(0)) {
+          if (buf[0][0] === '\n'.charAt(0) && buf[0][1] === '{'.charAt(0)) {
+            // TODO device.handleUpdate()
+            await parseDevice(buf.map(i => i.toString()).join(''), Conn.MQTT);
+          }
+          buf.length = 0;
+        }
+
+        // prefix/hub/id/get/name
+      } else if (parts.length === 3 && parts[1] === 'get') {
+          const device = hub.currentDevice;
+        if (parts[0] !== device.id) return;
+        log('Got GET from id=' + parts[0] + ', name=' + parts[2]);
+
+        await device.applyUpdate(parts[2], data.toString());
+        stop_tout();
       }
     });
   }
@@ -439,11 +551,11 @@ class MqttConnection extends Connection {
   }
 
   async discoverConn() {
+    log('MQTT discover');
     if (!this.connected) this._discover_flag = true;
-    else for (let id in devices) {
+    else for (const id of hub.devices.keys()) {
       await this._client.publishAsync(hub.cfg.prefix + '/' + id, hub.cfg.client_id);
     }
-    log('MQTT discover');
   }
 
   static async discoverAll() {
@@ -452,21 +564,8 @@ class MqttConnection extends Connection {
 
   async discoverAllConn() {
     if (!this.connected) return;
-    if (!(hub.cfg.prefix in this._pref_list)) {
-      await this._client.subscribeAsync(hub.cfg.prefix + '/hub');
-      this._pref_list.push(hub.cfg.prefix);
-      await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + hub.cfg.client_id + '/#');
-    }
-    await this._client.publishAsync(hub.cfg.prefix, hub.cfg.client_id)
     log('MQTT discover all');
-  }
-
-  async initNewDevice(id) {
-    if (this.connected) {
-      await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + id + '/get/#');
-      await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + hub.cfg.client_id + '/#');
-      if (!this._pref_list.includes(hub.cfg.prefix)) this._pref_list.push(hub.cfg.prefix);
-    }
+    await this._client.publishAsync(hub.cfg.prefix, hub.cfg.client_id);
   }
 }
 
@@ -478,9 +577,9 @@ class WebsocketConnection extends Connection {
   }
 
   static async discover() {
-    for (let id in devices) {
-      if (devices[id].ip === 'unset') continue;
-      const ws = new this(devices[id].ip);
+    for (const [id, device] of hub.devices) {
+      if (device.ip === null) continue;
+      const ws = new this(device.ip);
       log('WS discover');
       await ws.discover(id);
     }
@@ -494,14 +593,13 @@ class WebsocketConnection extends Connection {
     log('WS manual ' + ip);
     const ws = new this(ip);
     await ws.discover();
-    await back_h();
   }
 
   static async _discoverAll(ip) {
     try {
       if (hub.cfg.use_hook) {
-        const res = await fetch('http://' + ip + ':' + http_port + '/hub_discover_all', {
-          signal: AbortSignal.timeout(tout_prd)
+        const res = await fetch('http://' + ip + ':' + G.http_port + '/hub_discover_all', {
+          signal: AbortSignal.timeout(G.tout_prd)
         });
         if (res.status !== 200) return;
 
@@ -590,7 +688,7 @@ class WebsocketConnection extends Connection {
      */
 
     return new Promise(resolve => {
-      let ws = new WebSocket(`ws://${this.ip}:${ws_port}/`, ['hub']);
+      let ws = new WebSocket(`ws://${this.ip}:${G.ws_port}/`, ['hub']);
       ws.onopen = () => ws.send(hub.cfg.prefix + (id ? '/' + id : '') + '\0');
       ws.onmessage = async (event) => {
         clearTimeout(tout);
@@ -605,12 +703,8 @@ class WebsocketConnection extends Connection {
 
       const tout = setTimeout(() => {
         if (ws) ws.close();
-      }, ws_tout);
+      }, G.ws_tout);
     });
-  }
-
-  get focused() {
-    return; // TODO
   }
 
   _getSocket(url) {
@@ -631,7 +725,7 @@ class WebsocketConnection extends Connection {
     log(`WS ${this.ip} open...`);
 
     try {
-      this.ws = await this._getSocket(`ws://${this.ip}:${ws_port}/`);
+      this.ws = await this._getSocket(`ws://${this.ip}:${G.ws_port}/`);
     } catch (e) {
       this.ws = null;
     }
@@ -647,12 +741,14 @@ class WebsocketConnection extends Connection {
       log(`WS ${this.ip} error`);
     });
 
-    this.ws.addEventListener('close', async () => {
+    this.ws.addEventListener('close', async (e) => {
       log(`WS ${this.ip} closed`);
-      if (this.focused) {
-        await sleep(500);
+      console.log(e);
+      this.ws = null;
+      await sleep(500);
+
+      if (hub.currentDevice && hub.currentDevice.connection === this)
         await this.start();
-      }
     });
 
     this.ws.addEventListener('message', async event => {
@@ -665,16 +761,14 @@ class WebsocketConnection extends Connection {
         this._buffer = '';
       }
     });
-
-    if (!this.focused) this.ws.close();
   }
 
   async checkHttp() {
     if (this.http_cfg.upd) return;
 
     try {
-      const res = await fetch('http://' + this.ip + ':' + http_port + '/hub_http_cfg', {
-        signal: AbortSignal.timeout(tout_prd)
+      const res = await fetch('http://' + this.ip + ':' + G.http_port + '/hub_http_cfg', {
+        signal: AbortSignal.timeout(G.tout_prd)
       });
       const config = await res.json();
 
@@ -697,7 +791,7 @@ class WebsocketConnection extends Connection {
   }
 
   get connected() {
-    return this.ws && this.readyState === 1;
+    return this.ws && this.ws.readyState === 1;
   }
 
   async stop() {

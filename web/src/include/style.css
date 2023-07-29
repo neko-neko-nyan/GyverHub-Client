@@ -1724,3 +1724,56 @@ input:checked+.chbutton_s {
 }
 
 /*/NON-ESP*/
+
+#conns { display: none; }
+#main { display: block; }
+#test { display: none; }
+#proj { display: none; }
+#config { display: none; }
+#devices { display: none; }
+#controls { display: none; }
+#info { display: none; }
+#icon_menu { display: none; }
+#icon_cfg { display: none; }
+#fsbr { display: none; }
+#back { display: none; }
+#icon_refresh { display: none; }
+#version { display: none; }
+#title_row { cursor: pointer; }
+#footer { display: none; }
+
+
+body[data-page="main"] #conns { display: flex; }
+body[data-page="main"] #version { display: unset; }
+body[data-page="main"] #devices { display: grid; }
+body[data-page="main"] #icon_cfg { display: inline-block; }
+body[data-page="main"] #icon_refresh { display: inline-block; }
+body[data-page="main"] #title_row { cursor: unset; }
+body[data-page="main"] #footer { display: block; }
+
+body[data-page="test"] #main { display: none; }
+body[data-page="test"] #test { display: block; }
+body[data-page="test"] #back { display: inline-block; }
+
+body[data-page="projects"] #main { display: none; }
+body[data-page="projects"] #proj { display: block; }
+body[data-page="projects"] #back { display: inline-block; }
+
+body[data-page="device"] #controls { display: block; }
+body[data-page="device"] #icon_menu { display: inline-block; }
+body[data-page="device"] #back { display: inline-block; }
+body[data-page="device"] #icon_refresh { display: inline-block; }
+
+body[data-page="config"] #conns { display: flex; }
+body[data-page="config"] #config { display: block; }
+body[data-page="config"] #back { display: inline-block; }
+
+body[data-page="info"] #info { display: block; }
+body[data-page="info"] #icon_menu { display: inline-block; }
+body[data-page="info"] #back { display: inline-block; }
+
+body[data-page="fsbr"] #fsbr { display: block; }
+body[data-page="fsbr"] #icon_menu { display: inline-block; }
+body[data-page="fsbr"] #back { display: inline-block; }
+
+body[data-page="pin"] #back { display: inline-block; }

@@ -55,7 +55,7 @@ function load_devices() {
 
 // ============== DEVICE ===============
 function readModule(module) {
-  return !(devices[focused].modules & module);
+  return hub.currentDevice.isModuleEnabled(module);
 }
 
 // ============ COMPONENTS =============
@@ -210,10 +210,10 @@ function addInput(ctrl) {
   }
 }
 
-function sendInput(name) {
+async function sendInput(name) {
   let inp = EL('#' + name);
   const r = new RegExp(inp.pattern);
-  if (r.test(inp.value)) set_h(name, inp.value);
+  if (r.test(inp.value)) await set_h(name, inp.value);
   else showPopupError("Wrong text!");
 }
 
@@ -221,10 +221,10 @@ function checkLen(arg, len) {
   if (len && arg.value.length > len) arg.value = arg.value.substring(0, len);
 }
 
-function checkEnter(arg) {
+async function checkEnter(arg) {
   if (event.key === 'Enter') {
-    if (arg.pattern) sendInput(arg.name);
-    else set_h(arg.name, arg.value);
+    if (arg.pattern) await sendInput(arg.name);
+    else await set_h(arg.name, arg.value);
   }
 }
 
@@ -733,7 +733,7 @@ function drawCanvas(canvas) {
   canvas.value = null;
 }
 
-function clickCanvas(id, e) {
+async function clickCanvas(id, e) {
   if (!(id in canvases)) return;
   let rect = EL('#' + id).getBoundingClientRect();
   let scale = canvases[id].scale;
@@ -741,7 +741,7 @@ function clickCanvas(id, e) {
   if (x < 0) x = 0;
   let y = Math.round((e.clientY - rect.top) / scale * ratio());
   if (y < 0) y = 0;
-  set_h(id, (x << 16) | y);
+  await set_h(id, (x << 16) | y);
 }
 
 // gauge
@@ -1148,7 +1148,7 @@ function checkWidget(ctrl) {
 function beginWidgets(ctrl = null, check = false) {
   if (!check) endButtons();
   wid_row_size = 0;
-  if (devices[focused].break_widgets) return;
+  if (hub.currentDevice.break_widgets) return;
   let st = (ctrl && ctrl.height) ? `style="height:${ctrl.height}px"` : '';
   wid_row_id = 'widgets_row#' + wid_row_count;
   wid_row_count++;
@@ -1184,14 +1184,11 @@ function addWidget(width, name, label, inner, height = 0, noback = false) {
 }
 
 // ================ UTILS =================
-function showNotif(text, name) {
+async function showNotif(text, name) {
   if (!("Notification" in window) || Notification.permission !== 'granted') return;
   let descr = name + ' (' + new Date(Date.now()).toLocaleString() + ')';
-  navigator.serviceWorker.getRegistration().then(function (reg) {
-    reg.showNotification(text, {body: descr, vibrate: true});
-  });
-  //new Notification(text, {body: descr});
-  //self.registration.showNotification(text, {body: descr});
+  const reg = await navigator.serviceWorker.getRegistration();
+  await reg.showNotification(text, {body: descr, vibrate: true});
 }
 
 function checkDup(ctrl) {
@@ -1256,15 +1253,15 @@ function parseCSV(str) {
 }
 
 // ================ DOWNLOAD =================
-function nextFile() {
+async function nextFile() {
   if (!files.length) return;
   fetch_to_file = true;
-  if (devices_t[focused].conn === Conn.WS && devices_t[focused].http_cfg.download && files[0].path.startsWith(devices_t[focused].http_cfg.path)) {
+  if (devices_t[focused].conn === Conn.WS && hub.currentDevice.http_cfg.download && files[0].path.startsWith(hub.currentDevice.http_cfg.path)) {
     downloadFile();
     EL('wlabel' + files[0].id).innerHTML = ' [fetch...]';
   } else {
     fetch_path = files[0].path;
-    post('fetch', fetch_path);
+    await post('fetch', fetch_path);
   }
 }
 
@@ -1272,7 +1269,7 @@ function downloadFile() {
   fetching = focused;
   var xhr = new XMLHttpRequest();
   xhr.responseType = 'blob';
-  xhr.open('GET', 'http://' + devices[focused].ip + ':' + http_port + files[0].path);
+  xhr.open('GET', 'http://' + hub.currentDevice.ip + ':' + G.http_port + files[0].path);
   xhr.onprogress = function (e) {
     processFile(Math.round(e.loaded * 100 / e.total));
   };
@@ -1291,7 +1288,7 @@ function downloadFile() {
   xhr.send();
 }
 
-function downloadFileEnd(data) {
+async function downloadFileEnd(data) {
   switch (files[0].type) {
     case 'img':
       EL(files[0].id).innerHTML = `<img style="width:100%" src="data:${getMime(files[0].path)};base64,${data}">`;
@@ -1299,17 +1296,17 @@ function downloadFileEnd(data) {
       break;
   }
   files.shift();
-  nextFile();
+  await nextFile();
   fetching = null;
-  stopFS();
+  await stopFS();
 }
 
 function processFile(perc) {
   if (EL('wlabel' + files[0].id)) EL('wlabel' + files[0].id).innerHTML = ` [${perc}%]`;
 }
 
-function errorFile() {
+async function errorFile() {
   if (EL('wlabel' + files[0].id)) EL('wlabel' + files[0].id).innerHTML = ' [error]';
   files.shift();
-  nextFile();
+  await nextFile();
 }

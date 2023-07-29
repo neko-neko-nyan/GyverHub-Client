@@ -1,16 +1,15 @@
-const http_port = 80;
-const ws_port = 81;
-const tout_prd = 2800;
-const ping_prd = 3000;
-const oninput_prd = 100;
-const ws_tout = 4000;
+const G = {
+  http_port: 80,
+  ws_port: 81,
+  tout_prd: 2800,
+  ping_prd: 3000,
+  oninput_prd: 100,
+  ws_tout: 4000,
+};
 
-// =============== VARS ==============
-let ws_focus_flag = false;
 let tout_interval = null;
 let ping_interval = null;
 let set_tout = null;
-let oninput_tout = null;
 let refresh_ui = false;
 
 const Conn = {
@@ -21,31 +20,28 @@ const Conn = {
   NONE: 4,
   ERROR: 5,
 };
+
 const ConnNames = ['Serial', 'BT', 'WS', 'MQTT', 'None', 'Error'];
 
 // ============== SEND ================
 async function post(cmd, name = '', value = '') {
-  if (!focused) return;
-  if (cmd === 'set' && !readModule(Modules.SET)) return;
+  const device = hub.currentDevice;
+  if (!device) return;
+
   if (cmd === 'set') {
+    if (!device.isModuleEnabled(Modules.SET)) return;
     if (set_tout) clearTimeout(set_tout);
     prev_set = {name: name, value: value};
     set_tout = setTimeout(() => {
       set_tout = prev_set = null;
-    }, tout_prd);
+    }, G.tout_prd);
   }
-  cmd = cmd.toString();
-  name = name.toString();
-  value = value.toString();
 
-  const device = hub.devices.get(focused);
   await device.connection.send(cmd, name, value);
-
-  let id = focused;
 
   reset_ping();
   reset_tout();
-  log('Post to #' + id + ' via ' + ConnNames[devices_t[focused].conn] + ', cmd=' + cmd + (name ? (', name=' + name) : '') + (value ? (', value=' + value) : ''))
+  log('Post to #' + focused + ' via ' + device.connection + ', cmd=' + cmd + (name ? (', name=' + name) : '') + (value ? (', value=' + value) : ''))
 }
 
 async function release_all() {
@@ -74,7 +70,7 @@ async function input_h(name, value) {
       if (oninp_buffer[name].value != null && !tout_interval) await set_h(name, oninp_buffer[name].value);
       oninp_buffer[name].tout = null;
       oninp_buffer[name].value = null;
-    }, oninput_prd);
+    }, G.oninput_prd);
   } else {
     oninp_buffer[name].value = value;
   }
@@ -104,7 +100,7 @@ function reset_tout() {
     change_conn(Conn.ERROR);
     showErr(true);
     stop_tout();
-  }, tout_prd);
+  }, G.tout_prd);
 }
 
 function stop_ping() {
@@ -123,7 +119,7 @@ function reset_ping() {
     } else {
       await post('ping');
     }
-  }, ping_prd);
+  }, G.ping_prd);
 }
 
 /*NON-ESP*/
@@ -137,6 +133,7 @@ async function mq_stop() {
 
 async function manual_ws_h(ip) {
   await WebsocketConnection.manualIp(ip);
+  await back_h();
 }
 
 async function serial_select() {

@@ -28,10 +28,9 @@ class Joystick {
     if (!this.cv || !this.cv.parentNode.clientWidth) return;
     this.size = this.cv.parentNode.clientWidth;
 
-    let ratio = window.devicePixelRatio;
     this.cv.style.width = this.size + 'px';
     this.cv.style.height = this.size + 'px';
-    this.size *= ratio;
+    this.size *= window.devicePixelRatio;
     this.cv.width = this.size;
     this.cv.height = this.size;
     this.cv.style.cursor = 'pointer';
@@ -59,14 +58,14 @@ class Joystick {
 
   async _onMove(x, y) {
     if (this.pressed) {
-      this.movedX = x * ratio;
-      this.movedY = y * ratio;
+      this.movedX = x * window.devicePixelRatio;
+      this.movedY = y * window.devicePixelRatio;
       if (this.cv.offsetParent.tagName.toUpperCase() === "BODY") {
-        this.movedX -= this.cv.offsetLeft * ratio;
-        this.movedY -= this.cv.offsetTop * ratio;
+        this.movedX -= this.cv.offsetLeft * window.devicePixelRatio;
+        this.movedY -= this.cv.offsetTop * window.devicePixelRatio;
       } else {
-        this.movedX -= this.cv.offsetParent.offsetLeft * ratio;
-        this.movedY -= this.cv.offsetParent.offsetTop * ratio;
+        this.movedX -= this.cv.offsetParent.offsetLeft * window.devicePixelRatio;
+        this.movedY -= this.cv.offsetParent.offsetTop * window.devicePixelRatio;
       }
       await this.redraw();
     }

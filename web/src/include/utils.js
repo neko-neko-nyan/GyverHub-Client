@@ -229,3 +229,39 @@ function window_ip() {
   let ip = window.location.href.split('/')[2].split(':')[0];
   return checkIP(ip) ? ip : 'error';
 }
+
+async function arrayBuffer2base64(data) {
+  // Use a FileReader to generate a base64 data URI
+  const base64url = await new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.readAsDataURL(new Blob([data]))
+  })
+
+  /*
+  The result looks like
+  "data:application/octet-stream;base64,<your base64 data>",
+  so we split off the beginning:
+  */
+  return base64url.substring(base64url.indexOf(',') + 1);
+}
+
+function getMaskList() {
+    let list = [];
+    for (let i = 0; i < 33; i++) {
+        let imask;
+        if (i === 32) imask = 0xffffffff;
+        else imask = ~(0xffffffff >>> i);
+        list.push(`${(imask >>> 24) & 0xff}.${(imask >>> 16) & 0xff}.${(imask >>> 8) & 0xff}.${imask & 0xff}`);
+    }
+    return list;
+}
+
+String.prototype.hashCode = function () {
+    if (!this.length) return 0;
+    let hash = new Uint32Array(1);
+    for (let i = 0; i < this.length; i++) {
+        hash[0] = ((hash[0] << 5) - hash[0]) + this.charCodeAt(i);
+    }
+    return hash[0];
+}
