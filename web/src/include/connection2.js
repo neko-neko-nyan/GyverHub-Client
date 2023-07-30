@@ -41,7 +41,7 @@ async function post(cmd, name = '', value = '') {
 
   reset_ping();
   reset_tout();
-  log('Post to #' + focused + ' via ' + device.connection + ', cmd=' + cmd + (name ? (', name=' + name) : '') + (value ? (', value=' + value) : ''))
+  log('Post to #' + hub.currentDeviceId + ' via ' + device.connection + ', cmd=' + cmd + (name ? (', name=' + name) : '') + (value ? (', value=' + value) : ''))
 }
 
 async function release_all() {

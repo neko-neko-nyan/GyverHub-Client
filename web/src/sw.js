@@ -33,12 +33,9 @@ self.addEventListener('fetch', event => {
 
 self.addEventListener('activate', event => {
   event.waitUntil(async function () {
-    const cacheNames = await caches.keys()
-    await Promise.all(
-      cacheNames.filter((cacheName) => {
-        const deleteThisCache = cacheName !== CACHE_NAME;
-        return deleteThisCache;
-      }).map(cacheName => caches.delete(cacheName))
-    )
+    const cacheNames = await caches.keys();
+    const i = cacheNames.indexOf(CACHE_NAME);
+    if (i !== -1) cacheNames.splice(i, 1);
+    await Promise.all(cacheNames.map(cacheName => caches.delete(cacheName)))
   }());
 });

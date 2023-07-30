@@ -1,5 +1,4 @@
-let push_timer = 0;
-let prev_set = null;
+
 
 async function parseDevice(text, conn, ip = null) {
   text = text.trim().replaceAll(/([^\\])\\([^"\\nrt])/ig, "$1\\\\$2").replaceAll(/\t/ig, "\\t").replaceAll(/\n/ig, "\\n").replaceAll(/\r/ig, "\\r");
@@ -28,7 +27,7 @@ async function parseDevice(text, conn, ip = null) {
   const dev = hub.devices.get(id);
   if (dev) await dev.handlePacket(data, conn, ip);
   else if (data.type === 'discover') {
-    if (focused) return;
+    if (hub.currentDeviceId) return;
 
     // COMPATIBILITY
     if (data.modules === undefined) data.modules = 0;

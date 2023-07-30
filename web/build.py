@@ -5,9 +5,15 @@ notes = 'Fix MQTT OTA'
 
 js_files = [
     'src/include/GyverHub.js',
+    'src/include/Connection.js'
+    'src/include/BluetoothConnection.js'
+    'src/include/MqttConnection.js'
+    'src/include/SerialConnection.js'
+    'src/include/WebsocketConnection.js'
+    'src/include/Device.js'
     'src/include/utils.js',
     'src/include/devices.js',
-    'src/include/connection.js',
+    'src/include/connection2.js',
     'src/include/fs.js',
     'src/include/parser.js',
     'src/include/ui.js',

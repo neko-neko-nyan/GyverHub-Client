@@ -137,7 +137,7 @@ async function fetchFile(i) {
   fetch_index = i;
   fetch_name = fetch_path.split('/').pop();
   fetch_to_file = false;
-  if (devices_t[focused].conn === Conn.WS && hub.currentDevice.http_cfg.download && fetch_path.startsWith(hub.currentDevice.http_cfg.path))
+  if (hub.currentDevice.connection instanceof WebsocketConnection && hub.currentDevice.http_cfg.download && fetch_path.startsWith(hub.currentDevice.http_cfg.path))
     await fetchHTTP(fetch_path, fetch_name, fetch_index)
   else await post('fetch', fetch_path);
 }
@@ -184,7 +184,7 @@ function editor_cancel() {
 }
 
 async function fetchHTTP(path, name, index) {
-  fetching = focused;
+  fetching = hub.currentDeviceId;
   const progressEl = EL('process#' + index);
   progressEl.innerHTML = '0%';
 
@@ -254,7 +254,7 @@ function uploadFile(file, path) {
     path += file.name;
     if (!confirm('Upload ' + path + ' (' + buffer.length + ' bytes)?')) return clearFiles();
 
-    if (devices_t[focused].conn === Conn.WS && hub.currentDevice.http_cfg.upload) {
+    if (hub.currentDevice.connection instanceof WebsocketConnection && hub.currentDevice.http_cfg.upload) {
       EL('file_upload_btn').innerHTML = waiter(22, 'var(--font_inv)', false);
       let formData = new FormData();
       formData.append('upload', file, path);
@@ -320,7 +320,7 @@ function uploadOta(file, type) {
   reader.onload = function (e) {
     if (!e.target.result) return clearFiles();
 
-    if (devices_t[focused].conn === Conn.WS && hub.currentDevice.http_cfg.ota) {
+    if (hub.currentDevice.connection instanceof WebsocketConnection && hub.currentDevice.http_cfg.ota) {
       EL('ota_label').innerHTML = waiter(25, 'var(--font)', false);
       let formData = new FormData();
       formData.append(type, file, file.name);
@@ -365,4 +365,63 @@ async function otaNextChunk() {
 async function otaUrl(url, type) {
   await post('ota_url', type, url);
   showPopup('OTA start');
+}
+
+// ================ DOWNLOAD =================
+async function nextFile() {
+    if (!files.length) return;
+    fetch_to_file = true;
+    if (hub.currentDevice.connection instanceof WebsocketConnection && hub.currentDevice.http_cfg.download && files[0].path.startsWith(hub.currentDevice.http_cfg.path)) {
+        downloadFile();
+        EL('wlabel' + files[0].id).innerHTML = ' [fetch...]';
+    } else {
+        fetch_path = files[0].path;
+        await post('fetch', fetch_path);
+    }
+}
+
+function downloadFile() {
+    fetching = hub.currentDeviceId;
+    var xhr = new XMLHttpRequest();
+    xhr.responseType = 'blob';
+    xhr.open('GET', 'http://' + hub.currentDevice.ip + ':' + G.http_port + files[0].path);
+    xhr.onprogress = function (e) {
+        processFile(Math.round(e.loaded * 100 / e.total));
+    };
+    xhr.onloadend = function (e) {
+        if (e.loaded && e.loaded === e.total) {
+            processFile(100);
+            var reader = new FileReader();
+            reader.readAsDataURL(xhr.response);
+            reader.onloadend = function () {
+                downloadFileEnd(this.result.split('base64,')[1]);
+            }
+        } else {
+            errorFile();
+        }
+    }
+    xhr.send();
+}
+
+async function downloadFileEnd(data) {
+    switch (files[0].type) {
+        case 'img':
+            EL(files[0].id).innerHTML = `<img style="width:100%" src="data:${getMime(files[0].path)};base64,${data}">`;
+            if (EL('wlabel' + files[0].id)) EL('wlabel' + files[0].id).innerHTML = '';
+            break;
+    }
+    files.shift();
+    await nextFile();
+    fetching = null;
+    await stopFS();
+}
+
+function processFile(perc) {
+    if (EL('wlabel' + files[0].id)) EL('wlabel' + files[0].id).innerHTML = ` [${perc}%]`;
+}
+
+async function errorFile() {
+    if (EL('wlabel' + files[0].id)) EL('wlabel' + files[0].id).innerHTML = ' [error]';
+    files.shift();
+    await nextFile();
 }

@@ -117,7 +117,7 @@ window.onload = async function () {
         break;
 
       case 192: // open cli on `
-        if (focused) {
+        if (hub.currentDeviceId) {
           e.preventDefault();
           toggleCLI();
         }
@@ -135,7 +135,7 @@ window.onload = async function () {
   }
 
   /*NON-ESP*/
-  if ('serviceWorker' in navigator && !isLocal() && !isApp()) {
+  if ('serviceWorker' in navigator && !isLocal() && !isApp() && app_version !== '__VER__') {
     await navigator.serviceWorker.register('/sw.js');
     window.addEventListener('beforeinstallprompt', (e) => deferredPrompt = e);
   }
@@ -449,7 +449,6 @@ async function open_device(device) {
   /*NON-ESP*/
   await checkUpdates(device);
   /*/NON-ESP*/
-  focused = device.id;
   hub.currentDeviceId = device.id;
   refreshSpin(true);
 
@@ -479,7 +478,6 @@ async function close_device() {
   } else {
     await post('unfocus');
   }
-  focused = null;
   hub.currentDeviceId = null;
 
   await show_screen('main');
@@ -515,7 +513,7 @@ async function show_screen(nscreen) {
 
   } else if (screen === 'info') {
     EL('title').innerHTML = hub.currentDevice.info.name + '/info';
-    let id = focused;
+    let id = hub.currentDeviceId;
     EL('info_break_sw').checked = hub.currentDevice.break_widgets;
     EL('info_names_sw').checked = hub.currentDevice.show_names;
     EL('info_cli_sw').checked = EL('cli_cont').style.display === 'block';
@@ -647,7 +645,7 @@ function save_cfg() {
 async function cfg_export() {
   try {
     const config = {
-      cfg, 'hub': hub.cfg, devices
+      cfg, 'hub': hub.cfg //, devices
     }
     const text = btoa(JSON.stringify(config));
     await navigator.clipboard.writeText(text);
@@ -667,7 +665,7 @@ async function cfg_import() {
     }
     cfg = config.cfg;
     hub.cfg = config.hub;
-    devices = config.devices;
+    // devices = config.devices;
 
     save_cfg();
     save_devices();

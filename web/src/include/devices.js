@@ -1,8 +1,5 @@
-// ============== VARS =================
-let devices = {};
-let devices_t = {};
+
 let controls = {};
-let focused = null;
 let touch = 0;
 let pressId = null;
 let dup_names = [];
@@ -44,13 +41,13 @@ const Modules = {
 
 // ============ SAVE/LOAD ==============
 function save_devices() {
-  localStorage.setItem('devices', JSON.stringify(devices));
+  // TODO localStorage.setItem('devices', JSON.stringify(devices));
 }
 
 function load_devices() {
-  if (localStorage.hasOwnProperty('devices')) {
-    devices = JSON.parse(localStorage.getItem('devices'));
-  }
+  // if (localStorage.hasOwnProperty('devices')) {
+  //  TODO devices = JSON.parse(localStorage.getItem('devices'));
+  // }
 }
 
 // ============== DEVICE ===============
@@ -1208,105 +1205,4 @@ function formatToStep(val, step) {
 function scrollDown() {
   let logs = document.querySelectorAll(".c_log");
   logs.forEach((log) => log.scrollTop = log.scrollHeight);
-}
-
-function parseCSV(str) {
-  // https://stackoverflow.com/a/14991797
-  const arr = [];
-  let quote = false;
-  for (let row = 0, col = 0, c = 0; c < str.length; c++) {
-    let cc = str[c], nc = str[c + 1];
-    arr[row] = arr[row] || [];
-    arr[row][col] = arr[row][col] || '';
-    if (cc === '"' && quote && nc === '"') {
-      arr[row][col] += cc;
-      ++c;
-      continue;
-    }
-    if (cc === '"') {
-      quote = !quote;
-      continue;
-    }
-    if (cc === ',' && !quote) {
-      ++col;
-      continue;
-    }
-    if (cc === '\r' && nc === '\n' && !quote) {
-      ++row;
-      col = 0;
-      ++c;
-      continue;
-    }
-    if (cc === '\n' && !quote) {
-      ++row;
-      col = 0;
-      continue;
-    }
-    if (cc === '\r' && !quote) {
-      ++row;
-      col = 0;
-      continue;
-    }
-    arr[row][col] += cc;
-  }
-  return arr;
-}
-
-// ================ DOWNLOAD =================
-async function nextFile() {
-  if (!files.length) return;
-  fetch_to_file = true;
-  if (devices_t[focused].conn === Conn.WS && hub.currentDevice.http_cfg.download && files[0].path.startsWith(hub.currentDevice.http_cfg.path)) {
-    downloadFile();
-    EL('wlabel' + files[0].id).innerHTML = ' [fetch...]';
-  } else {
-    fetch_path = files[0].path;
-    await post('fetch', fetch_path);
-  }
-}
-
-function downloadFile() {
-  fetching = focused;
-  var xhr = new XMLHttpRequest();
-  xhr.responseType = 'blob';
-  xhr.open('GET', 'http://' + hub.currentDevice.ip + ':' + G.http_port + files[0].path);
-  xhr.onprogress = function (e) {
-    processFile(Math.round(e.loaded * 100 / e.total));
-  };
-  xhr.onloadend = function (e) {
-    if (e.loaded && e.loaded === e.total) {
-      processFile(100);
-      var reader = new FileReader();
-      reader.readAsDataURL(xhr.response);
-      reader.onloadend = function () {
-        downloadFileEnd(this.result.split('base64,')[1]);
-      }
-    } else {
-      errorFile();
-    }
-  }
-  xhr.send();
-}
-
-async function downloadFileEnd(data) {
-  switch (files[0].type) {
-    case 'img':
-      EL(files[0].id).innerHTML = `<img style="width:100%" src="data:${getMime(files[0].path)};base64,${data}">`;
-      if (EL('wlabel' + files[0].id)) EL('wlabel' + files[0].id).innerHTML = '';
-      break;
-  }
-  files.shift();
-  await nextFile();
-  fetching = null;
-  await stopFS();
-}
-
-function processFile(perc) {
-  if (EL('wlabel' + files[0].id)) EL('wlabel' + files[0].id).innerHTML = ` [${perc}%]`;
-}
-
-async function errorFile() {
-  if (EL('wlabel' + files[0].id)) EL('wlabel' + files[0].id).innerHTML = ' [error]';
-  files.shift();
-  await nextFile();
 }
