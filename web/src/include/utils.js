@@ -256,12 +256,3 @@ function getMaskList() {
     }
     return list;
 }
-
-String.prototype.hashCode = function () {
-    if (!this.length) return 0;
-    let hash = new Uint32Array(1);
-    for (let i = 0; i < this.length; i++) {
-        hash[0] = ((hash[0] << 5) - hash[0]) + this.charCodeAt(i);
-    }
-    return hash[0];
-}

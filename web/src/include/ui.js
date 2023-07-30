@@ -1,14 +1,14 @@
 let screen = 'main';
 let deferredPrompt = null;
-let pin_id = null;
 let show_version = false;
 let cfg_changed = false;
 let menu_f = false;
 let updates = [];
+let g_back_handler = null;
 
 let cfg = {
   use_pin: false,
-  pin: '',
+  pin: 0,
   ui_width: 450,
   theme: 'DARK',
   maincolor: 'GREEN',
@@ -46,20 +46,20 @@ window.onload = async function () {
     }
     if (Object.keys(cfg).length === Object.keys(cfg_r).length) {
       cfg = cfg_r;
-      if (!show_version) return;
+      // if (!show_version) return;
     }
   }
-  localStorage.setItem('config', JSON.stringify(cfg));
+  // localStorage.setItem('config', JSON.stringify(cfg));
 
 
   if (localStorage.hasOwnProperty('hub_config')) {
     let cfg_r = JSON.parse(localStorage.getItem('hub_config'));
     if (Object.keys(hub.cfg).length === Object.keys(cfg_r).length) {
       hub.cfg = cfg_r;
-      return;
+      // return;
     }
   }
-  localStorage.setItem('hub_config', JSON.stringify(hub.cfg));
+  // localStorage.setItem('hub_config', JSON.stringify(hub.cfg));
 
 
   if (isESP()) hub.cfg.use_ws = true;
@@ -141,8 +141,11 @@ window.onload = async function () {
   }
   /*/NON-ESP*/
 
-  if (cfg.use_pin) show_keypad(true);
-  else await startup();
+  if (cfg.use_pin) {
+    const p = new PinKeypadPage(+cfg.pin);
+    while (!await p.show()) {}
+  }
+  await startup();
 }
 
 async function startup() {
@@ -223,7 +226,7 @@ async function startup() {
   }
   if (isApp()) EL('app_block').style.display = 'none';
 
-  await serial_change();
+  await hub.serial.change();
   if (hub.cfg.use_mqtt) await hub.mqtt.start();
 
   setInterval(() => {
@@ -320,39 +323,11 @@ async function loadProject(repo) {
 /*/NON-ESP*/
 
 // =============== PIN ================
-async function pass_type(v) {
-  pass_inp.value += v;
-  let hash = pass_inp.value.hashCode();
-
-  if (pin_id) {   // device
-    if (hash === hub.devices.get(pin_id).info.PIN) {
-      const device = hub.devices.get(pin_id);
-      pass_inp.value = '';
-      device.granted = true;
-      await open_device(device);
-    }
-  } else {        // app
-    if (hash === cfg.pin) {
-      EL('password').style.display = 'none';
-      await startup();
-      pass_inp.value = '';
-    }
-  }
-}
 
 function check_type(arg) {
   if (arg.value.length > 0) {
     let c = arg.value[arg.value.length - 1];
     if (c < '0' || c > '9') arg.value = arg.value.slice(0, -1);
-  }
-}
-
-function show_keypad(v) {
-  if (v) {
-    EL('password').style.display = 'block';
-    EL('pass_inp').focus();
-  } else {
-    EL('password').style.display = 'none';
   }
 }
 
@@ -380,6 +355,10 @@ async function back_h() {
     menu_show(0);
     return;
   }
+  if (g_back_handler){
+    g_back_handler();
+    return;
+  }
   switch (screen) {
     case 'device':
       await release_all();
@@ -397,7 +376,6 @@ async function back_h() {
       await show_screen('main');
       await discover();
       break;
-    case 'pin':
     case 'projects':
     case 'test':
       await show_screen('main');
@@ -451,12 +429,14 @@ async function device_h(id) {
     //delete_h(id);
     return;
   }
-  if (device.isAccessAllowed) {
-    await open_device(device);
-  } else {
-    pin_id = id;
-    await show_screen('pin');
+  if (!device.isAccessAllowed) {
+    const p = new PinKeypadPage(device.info.PIN);
+    if (!await p.show()) {
+      await show_screen("main");
+      return;
+    }
   }
+  await open_device(device);
 }
 
 /**
@@ -465,6 +445,7 @@ async function device_h(id) {
  * @returns {Promise<void>}
  */
 async function open_device(device) {
+  device.granted = true;
   /*NON-ESP*/
   await checkUpdates(device);
   /*/NON-ESP*/
@@ -511,7 +492,6 @@ async function show_screen(nscreen) {
   document.body.dataset.page = nscreen;
   await stopFS();
   screen = nscreen;
-  show_keypad(false);
 
   EL('title').innerHTML = app_title;
 
@@ -554,9 +534,6 @@ async function show_screen(nscreen) {
 
   } else if (screen === 'fsbr') {
     EL('title').innerHTML = hub.currentDevice.info.name + '/fs';
-
-  } else if (screen === 'pin') {
-    show_keypad(true);
   }
 }
 

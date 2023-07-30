@@ -68,7 +68,7 @@ async function showControls(controls, from_buffer = false, conn = Conn.NONE, ip 
 
   const dev = hub.currentDevice
 
-  for (ctrl of controls) {
+  for (const ctrl of controls) {
     if (dev.show_names && ctrl.name) ctrl.label = ctrl.name;
     ctrl.wlabel = ctrl.label ? ctrl.label : ctrl.type;
     ctrl.clabel = (ctrl.label && ctrl.label !== '_no') ? ctrl.label : ctrl.type;

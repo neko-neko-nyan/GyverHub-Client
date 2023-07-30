@@ -31,6 +31,7 @@
     <script src="vendor/mqtt_5.0.0.min.js"></script>
     <script src="vendor/pickr.min.js"></script>
     <script src="include/joy.js"></script>
+    <script src="include/pin.js"></script>
     <script src="include/GyverHub.js"></script>
 
     <script src="include/utils.js?__VER__="></script>
@@ -335,7 +336,7 @@
                 <div class="cfg_row cfg_head cfg_clickable" onclick="use_mqtt.click()">
                     <label class="cfg_label cfg_clickable" id="mqtt_label"><span
                             class="icon cfg_icon"></span>MQTT</label>
-                    <input type="checkbox" id="use_mqtt" onchange="update_cfg(this);mq_stop()" style="display:none">
+                    <input type="checkbox" id="use_mqtt" onchange="update_cfg(this);hub.mqtt.stop()" style="display:none">
                 </div>
 
                 <div id="mq_block" style="display:none">
@@ -343,30 +344,30 @@
                     <div class="cfg_row">
                         <label class="cfg_label">Host</label>
                         <div class="cfg_inp_row cfg_inp_row_fix"><input class="cfg_inp" type="text" id="mq_host"
-                                                                        onchange="update_cfg(this);mq_stop()"></div>
+                                                                        onchange="update_cfg(this);hub.mqtt.stop()"></div>
                     </div>
 
                     <div class="cfg_row">
                         <label class="cfg_label">Port (WS TLS)</label>
                         <div class="cfg_inp_row cfg_inp_row_fix"><input class="cfg_inp" type="number" id="mq_port"
-                                                                        onchange="update_cfg(this);mq_stop()"></div>
+                                                                        onchange="update_cfg(this);hub.mqtt.stop()"></div>
                     </div>
 
                     <div class="cfg_row">
                         <label class="cfg_label">Login</label>
                         <div class="cfg_inp_row cfg_inp_row_fix"><input class="cfg_inp" type="text" id="mq_login"
-                                                                        onchange="update_cfg(this);mq_stop()"></div>
+                                                                        onchange="update_cfg(this);hub.mqtt.stop()"></div>
                     </div>
 
                     <div class="cfg_row">
                         <label class="cfg_label">Pass</label>
                         <div class="cfg_inp_row cfg_inp_row_fix"><input class="cfg_inp" type="password" id="mq_pass"
-                                                                        onchange="update_cfg(this);mq_stop()">
+                                                                        onchange="update_cfg(this);hub.mqtt.stop()">
                         </div>
                     </div>
                     <div class="cfg_btn_row">
-                        <button class="c_btn btn_mini" onclick="mq_start()">Connect</button>
-                        <button class="c_btn btn_mini" onclick="mq_stop()">Disconnect</button>
+                        <button class="c_btn btn_mini" onclick="hub.mqtt.start()">Connect</button>
+                        <button class="c_btn btn_mini" onclick="hub.mqtt.stop()">Disconnect</button>
                     </div>
 
                 </div>
@@ -375,7 +376,7 @@
             <div class="cfg_col" id="serial_col">
                 <div class="cfg_row cfg_head cfg_clickable" onclick="use_serial.click()">
                     <label class="cfg_label cfg_clickable" id="serial_label"><span class="icon cfg_icon"></span>Serial</label>
-                    <input type="checkbox" id="use_serial" onchange="serial_change();update_cfg(this)"
+                    <input type="checkbox" id="use_serial" onchange="hub.serial.change();update_cfg(this)"
                            style="display:none">
                 </div>
 
@@ -388,8 +389,8 @@
                     <div class="cfg_row">
                         <label class="cfg_label">Port</label>
                         <div class="cfg_btn_row">
-                            <button class="c_btn btn_mini" onclick="serial_select()">Select</button>
-                            <button id="serial_btn" class="c_btn btn_mini" onclick="serial_toggle()">Connect</button>
+                            <button class="c_btn btn_mini" onclick="hub.serial.select()">Select</button>
+                            <button id="serial_btn" class="c_btn btn_mini" onclick="hub.serial.toggle()">Connect</button>
                         </div>
                     </div>
                 </div>
@@ -405,7 +406,7 @@
                 <div id="bt_block" style="display:none">
                     <div class="cfg_row">
                         <label class="cfg_label" id="bt_device">Not Connected</label>
-                        <button id="bt_btn" class="c_btn btn_mini" onclick="bt_toggle()">Connect</button>
+                        <button id="bt_btn" class="c_btn btn_mini" onclick="hub.bt.toggle()">Connect</button>
                     </div>
                 </div>
 
@@ -482,7 +483,7 @@
                         <div class="cfg_inp_row cfg_inp_row_fix"><input class="cfg_inp" type="password" pattern="[0-9]*"
                                                                         inputmode="numeric"
                                                                         id="pin"
-                                                                        onchange="this.value=this.value.hashCode();update_cfg(this)"
+                                                                        onchange="this.value=PinKeypadPage.pinHash(this.value);update_cfg(this)"
                                                                         oninput="check_type(this)">
                         </div>
                     </div>
@@ -533,29 +534,27 @@
 
         <div id="password" class="main_col">
             <div class="pass_inp_inner">
-                <input class="cfg_inp pass_inp" type="number" pattern="[0-9]*" inputmode="numeric" id="pass_inp"
-                       oninput="pass_type('')">
+                <input class="cfg_inp pass_inp" type="number" pattern="[0-9]*" inputmode="numeric" id="pass_inp">
             </div>
             <div class="cfg_row pass_inner">
-                <button class="c_btn pass_btn" onclick="pass_type(1)">1</button>
-                <button class="c_btn pass_btn" onclick="pass_type(2)">2</button>
-                <button class="c_btn pass_btn" onclick="pass_type(3)">3</button>
+                <button class="c_btn pass_btn" data-key="1">1</button>
+                <button class="c_btn pass_btn" data-key="2">2</button>
+                <button class="c_btn pass_btn" data-key="3">3</button>
             </div>
             <div class="cfg_row pass_inner">
-                <button class="c_btn pass_btn" onclick="pass_type(4)">4</button>
-                <button class="c_btn pass_btn" onclick="pass_type(5)">5</button>
-                <button class="c_btn pass_btn" onclick="pass_type(6)">6</button>
+                <button class="c_btn pass_btn" data-key="4">4</button>
+                <button class="c_btn pass_btn" data-key="5">5</button>
+                <button class="c_btn pass_btn" data-key="6">6</button>
             </div>
             <div class="cfg_row pass_inner">
-                <button class="c_btn pass_btn" onclick="pass_type(7)">7</button>
-                <button class="c_btn pass_btn" onclick="pass_type(8)">8</button>
-                <button class="c_btn pass_btn" onclick="pass_type(9)">9</button>
+                <button class="c_btn pass_btn" data-key="7">7</button>
+                <button class="c_btn pass_btn" data-key="8">8</button>
+                <button class="c_btn pass_btn" data-key="9">9</button>
             </div>
             <div class="cfg_row pass_inner">
-                <button class="c_btn pass_btn empty_b"></button>
-                <button class="c_btn pass_btn" onclick="pass_type(0)">0</button>
-                <button class="c_btn pass_btn red_btn" onclick="pass_inp.value=pass_inp.value.slice(0, -1)">&lt;
-                </button>
+                <button class="c_btn empty_b"></button>
+                <button class="c_btn pass_btn" data-key="0">0</button>
+                <button class="c_btn pass_btn red_btn" data-key="<">&lt;</button>
             </div>
         </div>
     </div>

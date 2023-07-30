@@ -464,21 +464,6 @@ class MqttConnection extends Connection {
       return;
     }
 
-    this._client.on('connect', async () => {
-      this.showIcon(1);
-      await this._client.subscribeAsync(hub.cfg.prefix + '/hub');
-      await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + hub.cfg.client_id + '/#');
-
-      for (const id of hub.devices.keys()) {
-        await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + id + '/get/#');
-      }
-
-      if (this._discover_flag) {
-        this._discover_flag = false;
-        await this.discoverConn();
-      }
-    });
-
     this._client.on('error', () => {
       this.showIcon(0);
       this._client.end();
@@ -517,8 +502,8 @@ class MqttConnection extends Connection {
         buf.push(data);
 
         const last = buf[buf.length-1];
-        if (last[last.length - 2] === '}'.charAt(0) && last[last.length - 1] === '\n'.charAt(0)) {
-          if (buf[0][0] === '\n'.charAt(0) && buf[0][1] === '{'.charAt(0)) {
+        if (last[last.length - 2] === '}'.charCodeAt(0) && last[last.length - 1] === '\n'.charCodeAt(0)) {
+          if (buf[0][0] === '\n'.charCodeAt(0) && buf[0][1] === '{'.charCodeAt(0)) {
             // TODO device.handleUpdate()
             await parseDevice(buf.map(i => i.toString()).join(''), Conn.MQTT);
           }
@@ -535,6 +520,19 @@ class MqttConnection extends Connection {
         stop_tout();
       }
     });
+
+    this.showIcon(1);
+    await this._client.subscribeAsync(hub.cfg.prefix + '/hub');
+    await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + hub.cfg.client_id + '/#');
+
+    for (const id of hub.devices.keys()) {
+      await this._client.subscribeAsync(hub.cfg.prefix + '/hub/' + id + '/get/#');
+    }
+
+    if (this._discover_flag) {
+      this._discover_flag = false;
+      await this.discoverConn();
+    }
   }
 
   async send(cmd, name, value) {

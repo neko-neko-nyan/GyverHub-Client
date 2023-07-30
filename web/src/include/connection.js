@@ -52,12 +52,10 @@ async function release_all() {
 async function click_h(name, dir) {
   pressId = (dir === 1) ? name : null;
   await post('set', name, dir);
-  reset_ping();
 }
 
 async function set_h(name, value = '') {
   await post('set', name, value);
-  reset_ping();
 }
 
 async function input_h(name, value) {
@@ -122,32 +120,7 @@ function reset_ping() {
   }, G.ping_prd);
 }
 
-/*NON-ESP*/
-async function mq_start() {
-  await hub.mqtt.start();
-}
-
-async function mq_stop() {
-  await hub.mqtt.stop();
-}
-
 async function manual_ws_h(ip) {
   await WebsocketConnection.manualIp(ip);
   await back_h();
-}
-
-async function serial_select() {
-  await hub.serial.select();
-}
-
-async function serial_toggle() {
-  await hub.serial.toggle();
-}
-
-async function serial_change() {
-  await hub.serial.change();
-}
-
-async function bt_toggle() {
-  await hub.bt.toggle();
 }
